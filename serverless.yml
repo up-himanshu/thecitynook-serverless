@@ -1,0 +1,42 @@
+service: thecitynook-serverless
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'ap-south-1'}
+  profile: thecitynook
+  httpApi:
+    cors:
+      allowedOrigins:
+        - https://www.thecitynook.com
+        - https://thecitynook.com
+      allowedHeaders:
+        - Content-Type
+        - x-api-key
+      allowedMethods:
+        - GET
+        - POST
+        - OPTIONS
+      allowCredentials: true
+      maxAge: 300
+
+functions:
+  hello:
+    handler: src/handlers/hello.handler
+    events:
+      - httpApi:
+          path: /hello
+          method: get
+  reservationEnquiry:
+    handler: src/handlers/reservationEnquiry.handler
+    events:
+      - httpApi:
+          path: /reservation-enquiry
+          method: post
+  availableDates:
+    handler: src/handlers/availableDates.handler
+    events:
+      - httpApi:
+          path: /available-dates
+          method: get
