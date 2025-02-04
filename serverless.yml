@@ -39,6 +39,7 @@ functions:
           method: post
   availableDates:
     handler: src/handlers/availableDates.handler
+    timeout: 10
     events:
       - httpApi:
           path: /available-dates
@@ -55,3 +56,10 @@ functions:
       - httpApi:
           path: /reservation-enquiry
           method: options
+  syncCalendar:
+    handler: src/handlers/syncCalendar.handler
+    timeout: 30
+    events:
+      - schedule:
+          rate: rate(1 hour)
+          enabled: true

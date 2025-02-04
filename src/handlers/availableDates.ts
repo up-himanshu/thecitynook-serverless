@@ -1,15 +1,16 @@
 import { APIGatewayProxyHandler } from "aws-lambda";
 import { validateApiKey } from "../utils/middleware";
-import { sendResponse } from "../utils/utils";
+import { getBlockedDates, sendResponse } from "../utils/utils";
 
 export const handler: APIGatewayProxyHandler = async (event) => {
-  console.log("available dates query");
   const validationError = validateApiKey(event);
   if (validationError) return validationError;
 
-  const data = {
-    blockedDates: ["2025-02-01", "2025-02-02", "2025-02-05", "2025-02-15"],
-  };
-
-  return sendResponse(200, "List of blocked dates", data);
+  try {
+    const blockedDates = await getBlockedDates();
+    return sendResponse(200, "Success", { blockedDates });
+  } catch (error) {
+    console.error("Error fetching blocked dates:", error);
+    return sendResponse(500, "Failed to fetch blocked dates");
+  }
 };
