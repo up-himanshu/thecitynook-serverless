@@ -1,4 +1,4 @@
-import AWS from "aws-sdk";
+import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import dotenv from "dotenv";
 import axios from "axios";
 import moment from "moment";
@@ -7,9 +7,11 @@ import { getDatabase } from "./database";
 // Load environment variables from .env.local
 dotenv.config({ path: ".env.local" });
 
-const ses = new AWS.SES({
-  accessKeyId: process.env.SES_KEY,
-  secretAccessKey: process.env.SES_ACCESS_KEY,
+const ses = new SESClient({
+  credentials: {
+    accessKeyId: process.env.SES_KEY || "",
+    secretAccessKey: process.env.SES_ACCESS_KEY || "",
+  },
   region: process.env.SES_REGION || "ap-south-1",
 });
 
@@ -27,7 +29,7 @@ export const sendEmail = async ({
   from,
 }: EmailParams): Promise<boolean> => {
   try {
-    const params = {
+    const command = new SendEmailCommand({
       Destination: {
         ToAddresses: to,
       },
@@ -44,9 +46,9 @@ export const sendEmail = async ({
         },
       },
       Source: from,
-    };
+    });
 
-    await ses.sendEmail(params).promise();
+    await ses.send(command);
     return true;
   } catch (error) {
     console.error("Error sending email:", error);

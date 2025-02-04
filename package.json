@@ -24,7 +24,7 @@
     "typescript": "^5.1.6"
   },
   "dependencies": {
-    "aws-sdk": "^2.1692.0",
+    "@aws-sdk/client-ses": "^3.741.0",
     "axios": "^1.7.9",
     "dotenv": "^16.4.7",
     "moment": "^2.30.1",
