@@ -1,7 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
 export const validateApiKey = (event: APIGatewayProxyEvent): APIGatewayProxyResult | null => {
-  const apiKey = event.headers['x-api-key'];
+  const apiKey = event.headers['key'];
   
   if (!apiKey || apiKey !== 'abc123') {
     return {

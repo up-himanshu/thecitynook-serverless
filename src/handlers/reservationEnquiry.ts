@@ -78,18 +78,18 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       };
     }
 
-    // const emailSent = await sendEmail({
-    //     to: ['er.astha2008@gmail.com', 'up.himanshu@gmail.com'],
-    //     subject: `New Reservation Enquiry - ${body.dateFrom} to ${body.dateTo}`,
-    //     body: `<h1>New Reservation Enquiry</h1>
-    //            <p>Name: ${body.name}</p>
-    //            <p>Phone: ${body.phone}</p>
-    //            <p>Email: ${body.email}</p>
-    //            <p>Guest Count: ${body.guestCount}</p>`,
-    //     from: 'Team Hoistin <no-reply@hoistin.com>'
-    //   });
+    const emailSent = await sendEmail({
+      to: ["er.astha2008@gmail.com", "up.himanshu@gmail.com"],
+      subject: `New Reservation Enquiry - ${body.dateFrom} to ${body.dateTo}`,
+      body: `<h1>New Reservation Enquiry</h1>
+               <p>Name: ${body.name}</p>
+               <p>Phone: ${body.phone}</p>
+               <p>Email: ${body.email}</p>
+               <p>Guest Count: ${body.guestCount}</p>`,
+      from: "Team Hoistin <no-reply@hoistin.com>",
+    });
 
-    //   console.log("emailSent", emailSent)
+    console.log("emailSent", emailSent);
 
     return {
       statusCode: 200,

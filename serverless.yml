@@ -6,20 +6,10 @@ provider:
   stage: ${opt:stage, 'dev'}
   region: ${opt:region, 'ap-south-1'}
   profile: thecitynook
-  httpApi:
-    cors:
-      allowedOrigins:
-        - https://www.thecitynook.com
-        - https://thecitynook.com
-      allowedHeaders:
-        - Content-Type
-        - x-api-key
-      allowedMethods:
-        - GET
-        - POST
-        - OPTIONS
-      allowCredentials: true
-      maxAge: 300
+
+plugins:
+  - serverless-offline
+  - serverless-plugin-typescript
 
 functions:
   hello:
