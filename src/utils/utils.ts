@@ -103,7 +103,9 @@ export const getEmailBody = (body: any) => {
 };
 
 export const getEmailSubject = (body: any) => {
-  return `Website Reservation Enquiry - ${body.from} to ${body.to}`;
+  return `Website Reservation Enquiry - ${moment(body.dateFrom).format(
+    "D MMM"
+  )} to ${moment(body.dateTo).format("D MMM")}`;
 };
 
 export const getBlockedDates = async (): Promise<string[]> => {
