@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "jest",
-    "start": "serverless offline --httpPort ${PORT:-3005} --stage local",
+    "start": "serverless offline --httpPort ${PORT:-3005} --stage local --region us-east-1",
     "deploy": "serverless deploy --stage prod --aws-profile hoistin --region us-east-1",
     "remove": "serverless remove --stage prod --aws-profile hoistin --region us-east-1"
   },

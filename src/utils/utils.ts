@@ -1,6 +1,7 @@
 import AWS from "aws-sdk";
 import dotenv from "dotenv";
 import axios from "axios";
+import moment from "moment";
 
 // Load environment variables from .env.local
 dotenv.config({ path: ".env.local" });
@@ -74,8 +75,10 @@ export const verifyRecaptcha = async (token: string): Promise<boolean> => {
 
 export const sendResponse = async (
   status: number,
-  message: string
+  message: string,
+  data: any = {}
 ): Promise<any> => {
+  console.log("sendResponse params", status, message, data);
   return {
     statusCode: status,
     headers: {
@@ -83,7 +86,21 @@ export const sendResponse = async (
       "Access-Control-Allow-Credentials": "true",
     },
     body: [200, 201, 204].includes(status)
-      ? JSON.stringify({ message })
+      ? JSON.stringify({ message, data })
       : JSON.stringify({ error: message }),
   };
+};
+
+export const getEmailBody = (body: any) => {
+  const nights = moment(body.dateTo).diff(body.dateFrom, "days");
+  return `<h1>New Reservation Enquiry</h1>
+          <p>Name: ${body.name}</p>
+          <p>Phone: ${body.phone}</p>
+          <p>Email: ${body.email}</p>
+          <p>Guest Count: ${body.guestCount}</p>
+          <p>Nights: ${nights}</p>`;
+};
+
+export const getEmailSubject = (body: any) => {
+  return `Website Reservation Enquiry - ${body.from} to ${body.to}`;
 };

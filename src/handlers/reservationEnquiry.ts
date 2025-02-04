@@ -1,7 +1,13 @@
 import { APIGatewayProxyHandler } from "aws-lambda";
-import { sendEmail, sendResponse, verifyRecaptcha } from "../utils/utils";
+import {
+  getEmailBody,
+  getEmailSubject,
+  sendEmail,
+  sendResponse,
+  verifyRecaptcha,
+} from "../utils/utils";
 import { validateApiKey } from "../utils/middleware";
-import moment from "moment";
+import { FROM_EMAIL, TO_EMAILS } from "../utils/constants";
 
 interface ReservationEnquiry {
   name: string;
@@ -42,29 +48,17 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     if (!body.guestCount) return sendResponse(400, "Guest count is required");
 
-    const nights = moment(body.dateTo).diff(body.dateFrom, "days");
     const emailSent = await sendEmail({
-      to: ["er.astha2008@gmail.com", "up.himanshu@gmail.com"],
-      subject: `Website Reservation Enquiry - ${body.dateFrom} to ${body.dateTo}`,
-      body: `<h1>New Reservation Enquiry</h1>
-               <p>Name: ${body.name}</p>
-               <p>Phone: ${body.phone}</p>
-               <p>Email: ${body.email}</p>
-               <p>Guest Count: ${body.guestCount}</p>
-               <p>Nights: ${nights}</p>`,
-      from: "Team Hoistin <no-reply@hoistin.com>",
+      to: TO_EMAILS,
+      subject: getEmailSubject(body),
+      body: getEmailBody(body),
+      from: FROM_EMAIL,
     });
 
     console.log("emailSent", emailSent);
 
-    return {
-      statusCode: 201,
-      body: JSON.stringify({ message: "Reservation enquiry received" }),
-    };
+    return sendResponse(201, "Reservation enquiry received");
   } catch (error) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: "Invalid request body" }),
-    };
+    return sendResponse(400, "Invalid request body");
   }
 };
