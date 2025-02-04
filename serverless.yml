@@ -3,9 +3,22 @@ service: thecitynook-serverless
 provider:
   name: aws
   runtime: nodejs18.x
-  stage: ${opt:stage, 'dev'}
-  region: ${opt:region, 'ap-south-1'}
-  profile: thecitynook
+  stage: ${opt:stage}
+  region: ${opt:region}
+  profile: hoistin
+  httpApi:
+    cors:
+      allowedOrigins:
+        - "https://www.thecitynook.com"
+        - "https://thecitynook.com"
+      allowedMethods:
+        - GET
+        - POST
+        - OPTIONS
+      allowedHeaders:
+        - Content-Type
+        - Key
+      maxAge: 3600
 
 plugins:
   - serverless-offline
@@ -30,3 +43,15 @@ functions:
       - httpApi:
           path: /available-dates
           method: get
+  preflightAvailableDates:
+    handler: src/handlers/preflight.handler
+    events:
+      - httpApi:
+          path: /available-dates
+          method: options
+  preflightReservationEnquiry:
+    handler: src/handlers/preflight.handler
+    events:
+      - httpApi:
+          path: /reservation-enquiry
+          method: options

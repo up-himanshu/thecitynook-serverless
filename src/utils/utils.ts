@@ -55,19 +55,35 @@ export const sendEmail = async ({
 export const verifyRecaptcha = async (token: string): Promise<boolean> => {
   try {
     const response = await axios.post(
-      'https://www.google.com/recaptcha/api/siteverify',
+      "https://www.google.com/recaptcha/api/siteverify",
       null,
       {
         params: {
           secret: process.env.RECAPTCHA_SECRET_KEY,
-          response: token
-        }
+          response: token,
+        },
       }
     );
 
     return response.data.success;
   } catch (error) {
-    console.error('reCAPTCHA verification failed:', error);
+    console.error("reCAPTCHA verification failed:", error);
     return false;
   }
+};
+
+export const sendResponse = async (
+  status: number,
+  message: string
+): Promise<any> => {
+  return {
+    statusCode: status,
+    headers: {
+      "Access-Control-Allow-Origin": "https://www.thecitynook.com",
+      "Access-Control-Allow-Credentials": "true",
+    },
+    body: [200, 201, 204].includes(status)
+      ? JSON.stringify({ message })
+      : JSON.stringify({ error: message }),
+  };
 };
