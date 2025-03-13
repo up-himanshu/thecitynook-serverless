@@ -1,8 +1,6 @@
 import { Schema, Document } from "mongoose";
 import mongoose from "../utils/mongooseConnection";
 
-console.log("BlockedDate Model");
-
 export interface IBlockedDate extends Document {
   blockedDate: string;
 }

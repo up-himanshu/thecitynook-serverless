@@ -111,6 +111,10 @@ export const getEmailSubject = (body: any) => {
   )} to ${moment(body.dateTo).format("D MMM")}`;
 };
 
+export const correctEmailExtension = (email: string): string => {
+  return email.replace(/(@[\w.-]+)\.con$/, "$1.com");
+};
+
 export const getBlockedDates = async (): Promise<string[]> => {
   try {
     const dates = await BlockedDateModel.find({});

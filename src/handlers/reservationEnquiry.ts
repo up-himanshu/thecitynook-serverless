@@ -6,6 +6,7 @@ import {
   sendResponse,
   verifyRecaptcha,
   createEnquiry,
+  correctEmailExtension,
 } from "../utils/utils";
 import { validateApiKey } from "../utils/middleware";
 import { FROM_EMAIL, TO_EMAILS } from "../utils/constants";
@@ -48,10 +49,12 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     if (!body.guestCount) return sendResponse(400, "Guest count is required");
 
+    const email = correctEmailExtension(body.email || "");
+
     const enquiryCreated = await createEnquiry({
       name: body.name,
       phone: body.phone,
-      email: body.email,
+      email,
       dateFrom: body.dateFrom,
       dateTo: body.dateTo,
       guestCount: body.guestCount,
@@ -64,7 +67,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     const emailSent = await sendEmail({
       to: TO_EMAILS,
       subject: getEmailSubject(body),
-      body: getEmailBody(body),
+      body: getEmailBody({...body, email}),
       from: FROM_EMAIL,
     });
 
