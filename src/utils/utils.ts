@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import axios from "axios";
 import moment from "moment";
 import { getDatabase } from "./database";
+import EnquiryModel, { IEnquiry } from '../models/Enquiry';
 
 // Load environment variables from .env.local
 dotenv.config({ path: ".env.local" });
@@ -164,6 +165,26 @@ export const syncBlockedDatesFromCalendar = async (): Promise<boolean> => {
     return false;
   } catch (error) {
     console.error("Error syncing blocked dates:", error);
+    return false;
+  }
+};
+
+export const createEnquiry = async (enquiry: {
+  name: string;
+  phone: string;
+  email?: string;
+  dateFrom: string;
+  dateTo: string;
+  guestCount: number;
+}): Promise<IEnquiry | false> => {
+  try {
+    const newEnquiry = await EnquiryModel.create(enquiry);
+    if (!newEnquiry) {
+      return false;
+    }
+    return newEnquiry;
+  } catch (error) {
+    console.error("Error creating enquiry:", error);
     return false;
   }
 };

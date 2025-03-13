@@ -5,6 +5,7 @@ import {
   sendEmail,
   sendResponse,
   verifyRecaptcha,
+  createEnquiry,
 } from "../utils/utils";
 import { validateApiKey } from "../utils/middleware";
 import { FROM_EMAIL, TO_EMAILS } from "../utils/constants";
@@ -39,14 +40,26 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     if (!body.name) return sendResponse(400, "Name is required");
 
-    if (!body.phone && !body.email)
-      return sendResponse(400, "Either phone or email is required");
+    if (!body.phone) return sendResponse(400, "Phone is required");
 
     if (!body.dateFrom) return sendResponse(400, "Date from is required");
 
     if (!body.dateTo) return sendResponse(400, "Date to is required");
 
     if (!body.guestCount) return sendResponse(400, "Guest count is required");
+
+    const enquiryCreated = await createEnquiry({
+      name: body.name,
+      phone: body.phone,
+      email: body.email,
+      dateFrom: body.dateFrom,
+      dateTo: body.dateTo,
+      guestCount: body.guestCount,
+    });
+
+    console.log("enquiryCreated", enquiryCreated);
+
+    if (!enquiryCreated) return sendResponse(500, "Failed to create enquiry");
 
     const emailSent = await sendEmail({
       to: TO_EMAILS,
@@ -57,7 +70,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     console.log("emailSent", emailSent);
 
-    return sendResponse(201, "Reservation enquiry received");
+    return sendResponse(201, "Reservation enquiry received", enquiryCreated);
   } catch (error) {
     return sendResponse(400, "Invalid request body");
   }
