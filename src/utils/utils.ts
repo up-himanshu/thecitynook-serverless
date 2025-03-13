@@ -2,8 +2,8 @@ import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import dotenv from "dotenv";
 import axios from "axios";
 import moment from "moment";
-import { getDatabase } from "./database";
-import EnquiryModel, { IEnquiry } from '../models/Enquiry';
+import EnquiryModel, { IEnquiry } from "../models/Enquiry";
+import BlockedDateModel from "../models/BlockedDate";
 
 // Load environment variables from .env.local
 dotenv.config({ path: ".env.local" });
@@ -113,10 +113,7 @@ export const getEmailSubject = (body: any) => {
 
 export const getBlockedDates = async (): Promise<string[]> => {
   try {
-    const database = await getDatabase();
-    const collection = database.collection("blockedDates");
-
-    const dates = await collection.find({}).toArray();
+    const dates = await BlockedDateModel.find({});
     return dates.map((date) => date.blockedDate);
   } catch (error) {
     console.error("MongoDB Error:", error);
@@ -132,14 +129,11 @@ export const syncBlockedDatesFromCalendar = async (): Promise<boolean> => {
     );
 
     if (response.data) {
-      const database = await getDatabase();
-      const collection = database.collection("blockedDates");
-
       // Clear existing dates
-      await collection.deleteMany({});
+      await BlockedDateModel.deleteMany({});
 
       // Extract and format blocked dates
-      const lines = response.data.split("\n");
+      const lines: string[] = response.data.split("\n");
       const currentDate = moment().startOf("day");
       const blockedDates = lines
         .filter((line) => line.startsWith("DTSTART;VALUE=DATE:"))
@@ -155,7 +149,7 @@ export const syncBlockedDatesFromCalendar = async (): Promise<boolean> => {
         .filter((date) => moment(date.blockedDate).isSameOrAfter(currentDate));
 
       if (blockedDates.length > 0) {
-        await collection.insertMany(blockedDates);
+        await BlockedDateModel.insertMany(blockedDates);
       }
 
       console.log(`Synced ${blockedDates.length} blocked dates`);

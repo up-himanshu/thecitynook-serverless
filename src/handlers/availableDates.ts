@@ -7,7 +7,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   if (validationError) return validationError;
 
   try {
-    const blockedDates = await getBlockedDates();
+    const blockedDates: string[] = await getBlockedDates();
     return sendResponse(200, "Success", { blockedDates });
   } catch (error) {
     console.error("Error fetching blocked dates:", error);
