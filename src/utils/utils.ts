@@ -2,8 +2,13 @@ import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import dotenv from "dotenv";
 import axios from "axios";
 import moment from "moment";
-import EnquiryModel, { IEnquiry } from "../models/Enquiry";
+import EnquiryModel from "../models/Enquiry";
 import BlockedDateModel from "../models/BlockedDate";
+import {
+  IEnquiry,
+  ReservationEnquiry,
+  ReservationEnquiryRequest,
+} from "../interfaces/ReservationEnquiry";
 
 // Load environment variables from .env.local
 dotenv.config({ path: ".env.local" });
@@ -111,8 +116,72 @@ export const getEmailSubject = (body: any) => {
   )} to ${moment(body.dateTo).format("D MMM")}`;
 };
 
+export const getGuestEmailBody = (body: any) => {
+  const nights = moment(body.dateTo).diff(body.dateFrom, "days");
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h1 style="color: #2c3e50;">Thank You for Your Reservation Enquiry</h1>
+      
+      <p style="color: #34495e;">Dear ${body.name},</p>
+      
+      <p style="color: #34495e;">Thank you for choosing The City Nook. We have received your reservation enquiry with the following details:</p>
+      
+      <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+        <p style="margin: 5px 0;"><strong>Check-in:</strong> ${moment(
+          body.dateFrom
+        ).format("DD MMM YYYY")}</p>
+        <p style="margin: 5px 0;"><strong>Check-out:</strong> ${moment(
+          body.dateTo
+        ).format("DD MMM YYYY")}</p>
+        <p style="margin: 5px 0;"><strong>Number of Nights:</strong> ${nights}</p>
+        <p style="margin: 5px 0;"><strong>Number of Guests:</strong> ${
+          body.guestCount
+        }</p>
+      </div>
+
+      <p style="color: #34495e;">What happens next?</p>
+      <ul style="color: #34495e;">
+        <li>Our team will review your enquiry</li>
+        <li>We will contact you shortly via phone call or WhatsApp with further instructions</li>
+        <li>We'll assist you with the booking process and answer any questions you may have</li>
+      </ul>
+
+      <p style="color: #34495e;">If you have any immediate questions, feel free to reach out to us.</p>
+      
+      <p style="color: #34495e;">Best Regards,<br>The City Nook Team</p>
+    </div>
+  `;
+};
+
+export const getGuestEmailSubject = () => {
+  return `Thank You for Your Reservation Enquiry - The City Nook`;
+};
+
 export const correctEmailExtension = (email: string): string => {
   return email.replace(/(@[\w.-]+)\.con$/, "$1.com");
+};
+
+export const validateReservationEnquiry = async (
+  body: ReservationEnquiryRequest
+): Promise<string> => {
+  let result = "";
+
+  // if (!body.recaptchaToken) result = "reCAPTCHA token is required";
+
+  // const isRecaptchaValid = await verifyRecaptcha(body.recaptchaToken);
+  // if (!isRecaptchaValid) result = "reCAPTCHA verification failed";
+
+  if (!body.name) result = "Name is required";
+
+  if (!body.phone) result = "Phone is required";
+
+  if (!body.dateFrom) result = "Date from is required";
+
+  if (!body.dateTo) result = "Date to is required";
+
+  if (!body.guestCount) result = "Guest count is required";
+
+  return result;
 };
 
 export const getBlockedDates = async (): Promise<string[]> => {
@@ -167,14 +236,30 @@ export const syncBlockedDatesFromCalendar = async (): Promise<boolean> => {
   }
 };
 
-export const createEnquiry = async (enquiry: {
-  name: string;
-  phone: string;
-  email?: string;
-  dateFrom: string;
-  dateTo: string;
-  guestCount: number;
-}): Promise<IEnquiry | false> => {
+export const findEnquiry = async (
+  enquiry: ReservationEnquiry
+): Promise<IEnquiry | false> => {
+  try {
+    const existingEnquiry = await EnquiryModel.findOne({
+      phone: enquiry.phone,
+      dateFrom: enquiry.dateFrom,
+      dateTo: enquiry.dateTo,
+    });
+
+    if (existingEnquiry) {
+      return existingEnquiry;
+    }
+
+    return false;
+  } catch (error) {
+    console.error("Error finding enquiry:", error);
+    return false;
+  }
+};
+
+export const createEnquiry = async (
+  enquiry: ReservationEnquiry
+): Promise<IEnquiry | false> => {
   try {
     const newEnquiry = await EnquiryModel.create(enquiry);
     if (!newEnquiry) {
