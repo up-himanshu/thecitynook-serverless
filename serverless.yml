@@ -56,6 +56,18 @@ functions:
       - httpApi:
           path: /reservation-enquiry
           method: options
+  login:
+    handler: src/handlers/login.handler
+    events:
+      - httpApi:
+          path: /login
+          method: post
+  preflightLogin:
+    handler: src/handlers/preflight.handler
+    events:
+      - httpApi:
+          path: /login
+          method: options
   syncCalendar:
     handler: src/handlers/syncCalendar.handler
     timeout: 30
@@ -63,3 +75,39 @@ functions:
       - schedule:
           rate: rate(1 hour)
           enabled: true
+  createDefaultAdmin:
+    handler: src/handlers/createDefaultAdmin.handler
+    events:
+      - httpApi:
+          path: /create-default-admin
+          method: post
+  preflightCreateDefaultAdmin:
+    handler: src/handlers/preflight.handler
+    events:
+      - httpApi:
+          path: /create-default-admin
+          method: options
+  user:
+    handler: src/handlers/user.handler
+    events:
+      - httpApi:
+          path: /user
+          method: get
+  preflightUser:
+    handler: src/handlers/preflight.handler
+    events:
+      - httpApi:
+          path: /user
+          method: options
+  enquiries:
+    handler: src/handlers/enquiries.handler
+    events:
+      - httpApi:
+          path: /enquiries
+          method: get
+  preflightEnquiries:
+    handler: src/handlers/preflight.handler
+    events:
+      - httpApi:
+          path: /enquiries
+          method: options
