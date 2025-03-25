@@ -100,9 +100,10 @@ export const sendResponse = async (
   };
 };
 
-export const getEmailBody = (body: any) => {
+export const getEmailBody = (body: any, heading: string = "") => {
   const nights = moment(body.dateTo).diff(body.dateFrom, "days");
-  return `<h1>New Reservation Enquiry</h1>
+  return `<h1>${heading || "New Reservation Enquiry"}</h1>
+          <p>Duration: ${body.dateFrom} to ${body.dateTo}</p>
           <p>Name: ${body.name}</p>
           <p>Phone: ${body.phone}</p>
           <p>Email: ${body.email}</p>
@@ -137,6 +138,7 @@ export const getGuestEmailBody = (body: any) => {
         <p style="margin: 5px 0;"><strong>Number of Guests:</strong> ${
           body.guestCount
         }</p>
+        <p style="margin: 5px 0;"><strong>Special Offer:</strong> <span style="text-decoration: line-through;">₹2,200</span> <span style="color: #e74c3c;">₹1,500</span> per night</p>
       </div>
 
       <p style="color: #34495e;">What happens next?</p>
@@ -145,6 +147,16 @@ export const getGuestEmailBody = (body: any) => {
         <li>We will contact you shortly via phone call or WhatsApp with further instructions</li>
         <li>We'll assist you with the booking process and answer any questions you may have</li>
       </ul>
+
+      <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+        <p style="color: #34495e; margin: 10px 0;"><strong>Additional Information:</strong></p>
+        <ul style="color: #34495e;">
+          <li><a href="https://maps.app.goo.gl/F3tgJiuMf3b5wADo7" style="color: #3498db;">Click here to view our property location</a></li>
+          <li>Book with us on <a href="https://airbnb.co.in/h/thecitynook" style="color: #3498db;">Airbnb</a> or <a href="https://www.makemytrip.com/hotels/hotel-details?hotelId=202412201436016964&checkin=date_3&checkout=date_4&country=IN&city=CTJAI&roomStayQualifier=2e0e&openDetail=true&currency=ENG&region=IN&checkAvailability=true&locusId=CTJAI&locusType=city&homestay=true&zcp=8b5f5d1bc3ed" style="color: #3498db;">MakeMyTrip</a></li>
+          <li>Secure your booking with just 20% down payment - remaining balance due at check-in</li>
+          <li>Call <a href="tel:+919782001181"><strong>+91 97820 01181</strong></a> to book or for more details</li>
+        </ul>
+      </div>
 
       <p style="color: #34495e;">If you have any immediate questions, feel free to reach out to us.</p>
       

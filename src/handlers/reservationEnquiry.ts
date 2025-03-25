@@ -44,7 +44,11 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     const existingEnquiry = await findEnquiry(enquiry);
     if (existingEnquiry) {
-      return sendResponse(200, "Reservation enquiry already exists", existingEnquiry);
+      return sendResponse(
+        200,
+        "Reservation enquiry already exists",
+        existingEnquiry
+      );
     }
 
     const enquiryCreated = await createEnquiry(enquiry);

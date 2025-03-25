@@ -100,6 +100,18 @@ functions:
       - httpApi:
           path: /user
           method: options
+  seriousEnquiry:
+    handler: src/handlers/seriousEnquiry.handler
+    events:
+      - httpApi:
+          path: /enquiry/serious
+          method: post
+  preflightSeriousEnquiry:
+    handler: src/handlers/preflight.handler
+    events:
+      - httpApi:
+          path: /enquiry/serious
+          method: options
   enquiries:
     handler: src/handlers/enquiries.handler
     events:
