@@ -18,6 +18,7 @@ provider:
       allowedHeaders:
         - Content-Type
         - Key
+        - Authorization
       maxAge: 3600
 
 plugins:
