@@ -206,7 +206,75 @@ export const getBlockedDates = async (): Promise<string[]> => {
   }
 };
 
+const parseBlockedDates = (icalString: any) => {
+  const now = moment().startOf("day");
+  const endOfNextMonth = moment(now).add(1, "months").endOf("month");
+
+  const events = icalString.split("BEGIN:VEVENT").slice(1);
+  const blockedDates = [];
+
+  for (const event of events) {
+    const startMatch = event.match(/DTSTART;VALUE=DATE:(\d{8})/);
+    const endMatch = event.match(/DTEND;VALUE=DATE:(\d{8})/);
+
+    if (startMatch && endMatch) {
+      const start = moment(startMatch[1], "YYYYMMDD");
+      const end = moment(endMatch[1], "YYYYMMDD");
+
+      for (let date = moment(start); date.isBefore(end); date.add(1, "day")) {
+        if (date.isSameOrAfter(now) && date.isSameOrBefore(endOfNextMonth)) {
+          blockedDates.push({ blockedDate: date.format("YYYY-MM-DD") });
+        }
+      }
+    }
+  }
+
+  return blockedDates;
+};
+
+const getBlockedDatesFromUrl = async (url: string): Promise<any> => {
+  try {
+    const response = await axios.get(url);
+    return parseBlockedDates(response.data); 
+  } catch (error) {
+    throw error;
+  }
+};
+
+const getCommonBlockedDates = (arr1, arr2) => {
+  return arr1.filter((item1) =>
+    arr2.some((item2) =>
+      moment(item1.blockedDate).isSame(moment(item2.blockedDate), "day")
+    )
+  );
+};
+
 export const syncBlockedDatesFromCalendar = async (): Promise<boolean> => {
+  console.log("syncBlockedDatesFromCalendar start");
+  try {
+    const list1 = await getBlockedDatesFromUrl(
+      "https://www.airbnb.co.in/calendar/ical/1396443376139173537.ics?s=750921c96b6ebdd00c3901ee65f91429"
+    );
+
+    const list2 = await getBlockedDatesFromUrl(
+      "https://www.airbnb.co.in/calendar/ical/1312107705366987232.ics?s=d5e484c5e15ae0041756a9bae29f8558"
+    );
+
+    const result = getCommonBlockedDates(list1, list2);
+
+    if (result.length > 0) {
+      await BlockedDateModel.deleteMany({});
+      await BlockedDateModel.insertMany(result);
+    }
+    console.log(`Synced ${result.length} blocked dates`);
+    return true;
+  } catch (error) {
+    console.error("Error syncing blocked dates:", error);
+    return false;
+  }
+}
+
+export const syncBlockedDatesFromCalendar2 = async (): Promise<boolean> => {
   console.log("syncBlockedDatesFromCalendar start");
   try {
     const response = await axios.get(

@@ -76,6 +76,9 @@ functions:
       - schedule:
           rate: rate(1 hour)
           enabled: true
+      # - httpApi:
+      #     path: /sync-calendar
+      #     method: get
   createDefaultAdmin:
     handler: src/handlers/createDefaultAdmin.handler
     events:
