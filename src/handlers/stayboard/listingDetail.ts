@@ -31,5 +31,6 @@ export const handler = async (event: APIGatewayProxyEvent) => {
     submittedBy: task.completedById ? staffMap.get(String(task.completedById)) || 'Housekeeping' : 'Housekeeping',
   }));
 
-  return appResponse(200, { listing, bookings, housekeepingSubmissions });
+  const safeBookings = token.role === 'housekeeping' ? [] : bookings;
+  return appResponse(200, { listing, bookings: safeBookings, housekeepingSubmissions });
 };

@@ -1,4 +1,6 @@
 import { APIGatewayProxyEvent } from "aws-lambda";
+import moment from "moment";
+import StayboardBooking from "../../models/stayboard/Booking";
 import StayboardListing from "../../models/stayboard/Listing";
 import { parseToken } from "../../utils/stayboard/auth";
 import { appResponse } from "../../utils/stayboard/response";
@@ -16,20 +18,51 @@ export const getHandler = async (event: APIGatewayProxyEvent) => {
   const token = parseToken(event);
   if (!token) return appResponse(401, {}, "Unauthorized");
   const ownerId = token.role === "owner" ? token.userId : token.ownerId;
-  const listings = await StayboardListing.find({ ownerId });
-  return appResponse(200, { listings });
+  const today = moment().format("YYYY-MM-DD");
+  const [listings, bookings] = await Promise.all([
+    StayboardListing.find({ ownerId }),
+    StayboardBooking.find({ ownerId, checkOutDate: { $gte: today } }).sort({ checkInDate: 1 }),
+  ]);
+
+  const bookingsByListing = new Map<string, any[]>();
+  bookings.forEach((booking) => {
+    const key = String(booking.listingId);
+    if (!bookingsByListing.has(key)) bookingsByListing.set(key, []);
+    bookingsByListing.get(key)!.push(booking);
+  });
+
+  const listingRows = listings.map((listing) => ({
+    ...listing.toObject(),
+    checkInTime: listing.checkInTime || "13:00",
+    checkOutTime: listing.checkOutTime || "10:00",
+    bookings: bookingsByListing.get(String(listing._id)) || [],
+  }));
+  return appResponse(200, { listings: listingRows });
 };
+
+const isValidTime = (value: string) => /^\d{2}:\d{2}$/.test(value) && moment(value, "HH:mm", true).isValid();
 
 export const postHandler = async (event: APIGatewayProxyEvent) => {
   const token = parseToken(event);
   if (!token) return appResponse(401, {}, "Unauthorized");
   if (token.role !== "owner") return appResponse(403, {}, "Forbidden");
   if (!event.body) return appResponse(400, {}, "Missing request body");
-  const { name, capacity } = JSON.parse(event.body);
+  const { name, capacity, checkInTime, checkOutTime } = JSON.parse(event.body);
+  const safeCheckInTime = String(checkInTime || "13:00").trim();
+  const safeCheckOutTime = String(checkOutTime || "10:00").trim();
+  if (!isValidTime(safeCheckInTime) || !isValidTime(safeCheckOutTime)) {
+    return appResponse(400, {}, "checkInTime and checkOutTime must be in HH:mm format");
+  }
+  if (!(safeCheckInTime > safeCheckOutTime)) {
+    return appResponse(400, {}, "checkInTime must be greater than checkOutTime");
+  }
+
   const listing = await StayboardListing.create({
     ownerId: token.userId,
     name,
     capacity,
+    checkInTime: safeCheckInTime,
+    checkOutTime: safeCheckOutTime,
     checklist: defaultChecklist,
   });
   return appResponse(201, { listing }, "Listing created");

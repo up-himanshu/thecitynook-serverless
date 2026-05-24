@@ -117,6 +117,9 @@ export const postHandler = async (event: APIGatewayProxyEvent) => {
   if (!guestName || !checkInDate || !checkOutDate) {
     return appResponse(400, {}, 'guestName, checkInDate and checkOutDate are required');
   }
+  if (checkInDate === checkOutDate) {
+    return appResponse(400, {}, 'checkInDate and checkOutDate cannot be the same');
+  }
   if (!listingId) {
     return appResponse(400, {}, 'listingId is required');
   }
