@@ -1,7 +1,6 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
 import moment from 'moment';
 import StayboardHousekeepingTask from '../../models/stayboard/HousekeepingTask';
-import StayboardBooking from '../../models/stayboard/Booking';
 import StayboardDevice from '../../models/stayboard/Device';
 import { parseToken } from '../../utils/stayboard/auth';
 import { appResponse } from '../../utils/stayboard/response';
@@ -102,7 +101,6 @@ export const submitTaskHandler = async (event: APIGatewayProxyEvent) => {
 
   if (!task) return appResponse(404, {}, 'Task not found');
 
-  await StayboardBooking.findByIdAndUpdate(task.bookingId, { status: 'completed' });
   const ownerDevices = await StayboardDevice.find({});
   try {
     await sendPushNotifications(

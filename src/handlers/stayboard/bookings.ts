@@ -14,6 +14,39 @@ const defaultChecklist = ['Bed changed', 'Bathroom cleaned', 'Towels replaced', 
 const shouldCreateTaskForDueDate = (dueDate: string) => dueDate >= moment().format('YYYY-MM-DD');
 const calculateNights = (checkInDate: string, checkOutDate: string) =>
   Math.max(1, moment(checkOutDate).diff(moment(checkInDate), 'days'));
+const shiftNextDayCheckoutTaskToToday = async ({
+  ownerId,
+  listingId,
+  newBookingId,
+  newCheckInDate,
+}: {
+  ownerId: string;
+  listingId: string;
+  newBookingId: string;
+  newCheckInDate: string;
+}) => {
+  const targetCheckout = moment(newCheckInDate).add(1, 'day').format('YYYY-MM-DD');
+  const existingBooking = await StayboardBooking.findOne({
+    ownerId,
+    listingId,
+    checkOutDate: targetCheckout,
+    _id: { $ne: newBookingId },
+  }).sort({ createdAt: 1 });
+
+  if (!existingBooking) return;
+
+  const existingTask = await StayboardHousekeepingTask.findOne({
+    bookingId: existingBooking._id,
+    status: 'pending',
+  });
+  if (!existingTask) return;
+
+  const shiftedDueDate = moment(existingTask.dueDate).subtract(1, 'day').format('YYYY-MM-DD');
+  await StayboardHousekeepingTask.updateOne(
+    { _id: existingTask._id, status: 'pending' },
+    { $set: { dueDate: shiftedDueDate } },
+  );
+};
 
 const createTaskForBooking = async ({
   ownerId,
@@ -30,7 +63,7 @@ const createTaskForBooking = async ({
     .map((item: string) => ({ item, answer: null }));
 
   return StayboardHousekeepingTask.findOneAndUpdate(
-    { bookingId },
+    { bookingId, dueDate, status: 'pending' },
     {
       ownerId,
       listingId: listing._id,
@@ -42,6 +75,31 @@ const createTaskForBooking = async ({
     },
     { upsert: true, new: true, setDefaultsOnInsert: true },
   );
+};
+
+const createManualTaskForBooking = async ({
+  ownerId,
+  listing,
+  bookingId,
+  dueDate,
+}: {
+  ownerId: string;
+  listing: any;
+  bookingId: string;
+  dueDate: string;
+}) => {
+  const checklistTemplate = (listing.checklist?.length ? listing.checklist : defaultChecklist)
+    .map((item: string) => ({ item, answer: null }));
+
+  return StayboardHousekeepingTask.create({
+    ownerId,
+    listingId: listing._id,
+    bookingId,
+    roomName: listing.name,
+    dueDate,
+    checklist: checklistTemplate,
+    status: 'pending',
+  });
 };
 
 export const postHandler = async (event: APIGatewayProxyEvent) => {
@@ -96,6 +154,13 @@ export const postHandler = async (event: APIGatewayProxyEvent) => {
       dueDate: checkOutDate,
     })
     : null;
+
+  await shiftNextDayCheckoutTaskToToday({
+    ownerId: token.userId,
+    listingId,
+    newBookingId: String(booking._id),
+    newCheckInDate: checkInDate,
+  });
 
   const staffDevices = await StayboardDevice.find({});
   try {
@@ -180,4 +245,39 @@ export const lookupByPhoneHandler = async (event: APIGatewayProxyEvent) => {
   const booking = await StayboardBooking.findOne({ ownerId, phone }).sort({ createdAt: -1 });
   if (!booking) return appResponse(200, { found: false, guestName: null });
   return appResponse(200, { found: true, guestName: booking.guestName });
+};
+
+export const createHousekeepingTaskHandler = async (event: APIGatewayProxyEvent) => {
+  const token = parseToken(event);
+  if (!token) return appResponse(401, {}, 'Unauthorized');
+  if (token.role !== 'owner') return appResponse(403, {}, 'Forbidden');
+  if (!event.body) return appResponse(400, {}, 'Missing request body');
+
+  const bookingId = String(event.pathParameters?.bookingId || '').trim();
+  if (!bookingId) return appResponse(400, {}, 'bookingId is required');
+
+  const { dueDate } = JSON.parse(event.body);
+  const dueDateStr = String(dueDate || '').trim();
+  if (!dueDateStr || !moment(dueDateStr, 'YYYY-MM-DD', true).isValid()) {
+    return appResponse(400, {}, 'Valid dueDate (YYYY-MM-DD) is required');
+  }
+
+  const booking = await StayboardBooking.findOne({ _id: bookingId, ownerId: token.userId });
+  if (!booking) return appResponse(404, {}, 'Booking not found');
+
+  if (!(booking.checkOutDate > moment().format('YYYY-MM-DD'))) {
+    return appResponse(400, {}, 'Manual housekeeping task allowed only when booking checkout date is in future');
+  }
+
+  const listing = await StayboardListing.findOne({ _id: booking.listingId, ownerId: token.userId });
+  if (!listing) return appResponse(404, {}, 'Listing not found');
+
+  const housekeepingTask = await createManualTaskForBooking({
+    ownerId: token.userId,
+    listing,
+    bookingId: String(booking._id),
+    dueDate: dueDateStr,
+  });
+
+  return appResponse(201, { housekeepingTask }, 'Housekeeping task created');
 };

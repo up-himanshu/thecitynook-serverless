@@ -20,7 +20,7 @@ export interface IStayboardHousekeepingTask extends Document {
 const schema = new Schema<IStayboardHousekeepingTask>({
   ownerId: { type: Schema.Types.ObjectId, ref: 'StayboardUser', required: true },
   listingId: { type: Schema.Types.ObjectId, ref: 'StayboardListing', required: true },
-  bookingId: { type: Schema.Types.ObjectId, ref: 'StayboardBooking', required: true, unique: true },
+  bookingId: { type: Schema.Types.ObjectId, ref: 'StayboardBooking', required: true },
   roomName: { type: String, required: true },
   dueDate: { type: String, required: true },
   checklist: [{ item: { type: String, required: true }, answer: { type: String, enum: ['yes', 'no', null], default: null } }],

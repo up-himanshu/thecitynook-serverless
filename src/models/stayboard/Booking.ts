@@ -12,7 +12,6 @@ export interface IStayboardBooking extends Document {
   amount: number;
   notes?: string;
   idPhotoUrl?: string;
-  status: 'upcoming' | 'occupied' | 'checked_out' | 'cleaning_required' | 'completed';
 }
 
 const schema = new Schema<IStayboardBooking>({
@@ -26,7 +25,6 @@ const schema = new Schema<IStayboardBooking>({
   amount: { type: Number, required: true },
   notes: { type: String },
   idPhotoUrl: { type: String },
-  status: { type: String, enum: ['upcoming', 'occupied', 'checked_out', 'cleaning_required', 'completed'], default: 'upcoming' },
 }, { timestamps: true, collection: 'stayboard_bookings' });
 
 export default mongoose.model<IStayboardBooking>('StayboardBooking', schema);

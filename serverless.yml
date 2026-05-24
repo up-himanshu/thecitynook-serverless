@@ -243,6 +243,12 @@ functions:
       - httpApi:
           path: /api/app/bookings/lookup
           method: get
+  appBookingCreateHousekeepingTask:
+    handler: src/handlers/stayboard/bookings.createHousekeepingTaskHandler
+    events:
+      - httpApi:
+          path: /api/app/bookings/{bookingId}/housekeeping-tasks
+          method: post
   appHousekeepingComplete:
     handler: src/handlers/stayboard/housekeeping.submitTaskHandler
     events:
