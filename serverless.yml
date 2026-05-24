@@ -8,6 +8,10 @@ provider:
   profile: hoistin
   environment:
     DB_CONNECTION_STRING: ${self:custom.dbConnectionMap.${opt:stage}, ''}
+    SES_KEY: ${env:SES_KEY}
+    SES_ACCESS_KEY: ${env:SES_ACCESS_KEY}
+    SES_REGION: ${env:SES_REGION}
+    RECAPTCHA_SECRET_KEY: ${env:RECAPTCHA_SECRET_KEY}
   httpApi:
     cors:
       allowedOrigins:
