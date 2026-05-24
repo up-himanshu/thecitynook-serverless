@@ -6,30 +6,30 @@ export interface IStayboardHousekeepingTask extends Document {
   listingId: string;
   bookingId: string;
   roomName: string;
+  dueDate: string;
   checklist: { item: string; answer: 'yes' | 'no' | null }[];
   remarks?: string;
-  assignedTo?: string;
-  status: 'pending' | 'in_progress' | 'completed';
-  startedBy?: string;
-  startedAt?: Date;
-  completedBy?: string;
-  completedAt?: Date;
+  status: 'pending' | 'skipped' | 'in_progress' | 'completed';
+  startedById?: string;
+  taskStartedAt?: Date;
+  completedById?: string;
+  taskCompletedAt?: Date;
   durationMinutes?: number;
 }
 
 const schema = new Schema<IStayboardHousekeepingTask>({
   ownerId: { type: Schema.Types.ObjectId, ref: 'StayboardUser', required: true },
   listingId: { type: Schema.Types.ObjectId, ref: 'StayboardListing', required: true },
-  bookingId: { type: Schema.Types.ObjectId, ref: 'StayboardBooking', required: true },
+  bookingId: { type: Schema.Types.ObjectId, ref: 'StayboardBooking', required: true, unique: true },
   roomName: { type: String, required: true },
+  dueDate: { type: String, required: true },
   checklist: [{ item: { type: String, required: true }, answer: { type: String, enum: ['yes', 'no', null], default: null } }],
   remarks: { type: String },
-  assignedTo: { type: Schema.Types.ObjectId, ref: 'StayboardUser' },
-  status: { type: String, enum: ['pending', 'in_progress', 'completed'], default: 'pending' },
-  startedBy: { type: Schema.Types.ObjectId, ref: 'StayboardUser' },
-  startedAt: { type: Date },
-  completedBy: { type: Schema.Types.ObjectId, ref: 'StayboardUser' },
-  completedAt: { type: Date },
+  status: { type: String, enum: ['pending', 'skipped', 'in_progress', 'completed'], default: 'pending' },
+  startedById: { type: Schema.Types.ObjectId, ref: 'StayboardUser' },
+  taskStartedAt: { type: Date },
+  completedById: { type: Schema.Types.ObjectId, ref: 'StayboardUser' },
+  taskCompletedAt: { type: Date },
   durationMinutes: { type: Number },
 }, { timestamps: true, collection: 'stayboard_housekeeping_tasks' });
 

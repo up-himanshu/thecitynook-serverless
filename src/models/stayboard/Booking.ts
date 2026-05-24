@@ -8,6 +8,7 @@ export interface IStayboardBooking extends Document {
   phone?: string;
   checkInDate: string;
   checkOutDate: string;
+  nights: number;
   amount: number;
   notes?: string;
   idPhotoUrl?: string;
@@ -21,6 +22,7 @@ const schema = new Schema<IStayboardBooking>({
   phone: { type: String },
   checkInDate: { type: String, required: true },
   checkOutDate: { type: String, required: true },
+  nights: { type: Number, required: true, min: 1 },
   amount: { type: Number, required: true },
   notes: { type: String },
   idPhotoUrl: { type: String },

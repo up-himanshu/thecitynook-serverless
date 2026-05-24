@@ -1,4 +1,5 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
+import moment from 'moment';
 import multipart from 'lambda-multipart-parser';
 import StayboardBooking from '../../models/stayboard/Booking';
 import StayboardHousekeepingTask from '../../models/stayboard/HousekeepingTask';
@@ -10,6 +11,38 @@ import { uploadGuestIdPhoto } from '../../utils/stayboard/s3';
 import { sendPushNotifications } from '../../utils/stayboard/push';
 
 const defaultChecklist = ['Bed changed', 'Bathroom cleaned', 'Towels replaced', 'Dusting done', 'Water bottles refilled', 'TV checked'];
+const shouldCreateTaskForDueDate = (dueDate: string) => dueDate >= moment().format('YYYY-MM-DD');
+const calculateNights = (checkInDate: string, checkOutDate: string) =>
+  Math.max(1, moment(checkOutDate).diff(moment(checkInDate), 'days'));
+
+const createTaskForBooking = async ({
+  ownerId,
+  listing,
+  bookingId,
+  dueDate,
+}: {
+  ownerId: string;
+  listing: any;
+  bookingId: string;
+  dueDate: string;
+}) => {
+  const checklistTemplate = (listing.checklist?.length ? listing.checklist : defaultChecklist)
+    .map((item: string) => ({ item, answer: null }));
+
+  return StayboardHousekeepingTask.findOneAndUpdate(
+    { bookingId },
+    {
+      ownerId,
+      listingId: listing._id,
+      bookingId,
+      roomName: listing.name,
+      dueDate,
+      checklist: checklistTemplate,
+      status: 'pending',
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true },
+  );
+};
 
 export const postHandler = async (event: APIGatewayProxyEvent) => {
   const token = parseToken(event);
@@ -49,22 +82,20 @@ export const postHandler = async (event: APIGatewayProxyEvent) => {
     phone: phone || undefined,
     checkInDate,
     checkOutDate,
+    nights: calculateNights(checkInDate, checkOutDate),
     amount: Number(parsed.amount || 0),
     notes: parsed.notes,
     idPhotoUrl,
   });
 
-  const checklistTemplate = (listing.checklist?.length ? listing.checklist : defaultChecklist)
-    .map((item) => ({ item, answer: null }));
-
-  const task = await StayboardHousekeepingTask.create({
-    ownerId: token.userId,
-    listingId,
-    bookingId: booking._id,
-    roomName: listing.name,
-    checklist: checklistTemplate,
-    status: 'pending',
-  });
+  const task = shouldCreateTaskForDueDate(checkOutDate)
+    ? await createTaskForBooking({
+      ownerId: token.userId,
+      listing,
+      bookingId: String(booking._id),
+      dueDate: checkOutDate,
+    })
+    : null;
 
   const staffDevices = await StayboardDevice.find({});
   try {
@@ -78,6 +109,63 @@ export const postHandler = async (event: APIGatewayProxyEvent) => {
   }
 
   return appResponse(201, { booking, housekeepingTask: task }, 'Booking created');
+};
+
+export const extendBookingHandler = async (event: APIGatewayProxyEvent) => {
+  const token = parseToken(event);
+  if (!token) return appResponse(401, {}, 'Unauthorized');
+  if (token.role !== 'owner') return appResponse(403, {}, 'Forbidden');
+  if (!event.body) return appResponse(400, {}, 'Missing request body');
+
+  const bookingId = event.pathParameters?.bookingId;
+  if (!bookingId) return appResponse(400, {}, 'bookingId is required');
+
+  const { newCheckoutDate, amount, skipHousekeeping } = JSON.parse(event.body);
+  if (!newCheckoutDate || Number.isNaN(Number(amount))) {
+    return appResponse(400, {}, 'newCheckoutDate and amount are required');
+  }
+
+  const oldBooking = await StayboardBooking.findOne({ _id: bookingId, ownerId: token.userId });
+  if (!oldBooking) return appResponse(404, {}, 'Booking not found');
+
+  const oldCheckout = new Date(oldBooking.checkOutDate).getTime();
+  const newCheckout = new Date(String(newCheckoutDate)).getTime();
+  if (!oldCheckout || !newCheckout || newCheckout <= oldCheckout) {
+    return appResponse(400, {}, 'newCheckoutDate must be greater than current checkout date');
+  }
+
+  const listing = await StayboardListing.findOne({ _id: oldBooking.listingId, ownerId: token.userId });
+  if (!listing) return appResponse(404, {}, 'Listing not found');
+
+  const newBooking = await StayboardBooking.create({
+    ownerId: token.userId,
+    listingId: oldBooking.listingId,
+    guestName: oldBooking.guestName,
+    phone: oldBooking.phone,
+    checkInDate: oldBooking.checkOutDate,
+    checkOutDate: String(newCheckoutDate),
+    nights: calculateNights(oldBooking.checkOutDate, String(newCheckoutDate)),
+    amount: Number(amount),
+    notes: oldBooking.notes,
+  });
+
+  if (skipHousekeeping) {
+    await StayboardHousekeepingTask.findOneAndUpdate(
+      { bookingId: oldBooking._id },
+      { status: 'skipped' },
+    );
+  }
+
+  const newTask = shouldCreateTaskForDueDate(String(newCheckoutDate))
+    ? await createTaskForBooking({
+      ownerId: token.userId,
+      listing,
+      bookingId: String(newBooking._id),
+      dueDate: String(newCheckoutDate),
+    })
+    : null;
+
+  return appResponse(201, { oldBooking, newBooking, newTask }, 'Booking extended');
 };
 
 export const lookupByPhoneHandler = async (event: APIGatewayProxyEvent) => {

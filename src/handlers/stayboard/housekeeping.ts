@@ -1,4 +1,5 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
+import moment from 'moment';
 import StayboardHousekeepingTask from '../../models/stayboard/HousekeepingTask';
 import StayboardBooking from '../../models/stayboard/Booking';
 import StayboardDevice from '../../models/stayboard/Device';
@@ -11,8 +12,19 @@ export const listTasksHandler = async (event: APIGatewayProxyEvent) => {
   if (!token) return appResponse(401, {}, 'Unauthorized');
 
   const ownerId = token.role === 'owner' ? token.userId : token.ownerId;
-  const tasks = await StayboardHousekeepingTask.find({ ownerId, status: { $in: ['pending', 'in_progress'] } }).sort({ createdAt: 1 });
-  return appResponse(200, { tasks });
+  const dueDate = String(event.queryStringParameters?.date || moment().format('YYYY-MM-DD'));
+
+  const statusFilter = token.role === 'housekeeping'
+    ? { $in: ['pending', 'in_progress', 'completed'] }
+    : { $in: ['pending', 'in_progress', 'completed', 'skipped'] };
+
+  const tasks = await StayboardHousekeepingTask.find({
+    ownerId,
+    dueDate,
+    status: statusFilter,
+  }).sort({ createdAt: 1 });
+
+  return appResponse(200, { tasks, dueDate });
 };
 
 export const startTaskHandler = async (event: APIGatewayProxyEvent) => {
@@ -23,11 +35,18 @@ export const startTaskHandler = async (event: APIGatewayProxyEvent) => {
 
   const task = await StayboardHousekeepingTask.findById(taskId);
   if (!task) return appResponse(404, {}, 'Task not found');
+  if (task.status === 'completed' || task.status === 'skipped') {
+    return appResponse(400, {}, 'Task cannot be started from current status');
+  }
+
+  if (task.status === 'in_progress' && String(task.startedById || '') !== String(token.userId)) {
+    return appResponse(409, {}, 'Task already started by another user');
+  }
 
   if (task.status === 'pending') {
     task.status = 'in_progress';
-    task.startedAt = new Date();
-    task.startedBy = token.userId;
+    task.taskStartedAt = new Date();
+    task.startedById = token.userId;
     await task.save();
   }
 
@@ -54,8 +73,18 @@ export const submitTaskHandler = async (event: APIGatewayProxyEvent) => {
   const existingTask = await StayboardHousekeepingTask.findById(taskId);
   if (!existingTask) return appResponse(404, {}, 'Task not found');
 
+  if (existingTask.status === 'skipped') {
+    return appResponse(400, {}, 'Skipped task cannot be submitted');
+  }
+  if (existingTask.status === 'completed') {
+    return appResponse(400, {}, 'Task already completed');
+  }
+  if (existingTask.status === 'in_progress' && String(existingTask.startedById || '') !== String(token.userId)) {
+    return appResponse(409, {}, 'Task is in progress by another user');
+  }
+
   const now = new Date();
-  const startedAt = existingTask.startedAt || now;
+  const startedAt = existingTask.taskStartedAt || now;
   const durationMinutes = Math.max(1, Math.round((now.getTime() - startedAt.getTime()) / 60000));
 
   const task = await StayboardHousekeepingTask.findByIdAndUpdate(
@@ -64,8 +93,8 @@ export const submitTaskHandler = async (event: APIGatewayProxyEvent) => {
       checklist,
       remarks,
       status: 'completed',
-      completedBy: token.userId,
-      completedAt: now,
+      completedById: token.userId,
+      taskCompletedAt: now,
       durationMinutes,
     },
     { new: true },
@@ -86,4 +115,21 @@ export const submitTaskHandler = async (event: APIGatewayProxyEvent) => {
   }
 
   return appResponse(200, { task }, 'Task completed');
+};
+
+export const skipTaskHandler = async (event: APIGatewayProxyEvent) => {
+  const token = parseToken(event);
+  if (!token) return appResponse(401, {}, 'Unauthorized');
+  if (token.role !== 'owner') return appResponse(403, {}, 'Forbidden');
+  const taskId = event.pathParameters?.taskId;
+  if (!taskId) return appResponse(400, {}, 'taskId is required');
+
+  const task = await StayboardHousekeepingTask.findByIdAndUpdate(
+    taskId,
+    { status: 'skipped' },
+    { new: true },
+  );
+  if (!task) return appResponse(404, {}, 'Task not found');
+
+  return appResponse(200, { task }, 'Task skipped');
 };

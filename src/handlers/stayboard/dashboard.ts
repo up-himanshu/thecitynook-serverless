@@ -15,7 +15,7 @@ export const handler = async (event: APIGatewayProxyEvent) => {
 
   const [bookings, tasks, listings] = await Promise.all([
     StayboardBooking.find({ ownerId }),
-    StayboardHousekeepingTask.find({ ownerId, status: { $in: ['pending', 'in_progress'] } }),
+    StayboardHousekeepingTask.find({ ownerId, dueDate: today }).sort({ createdAt: 1 }),
     StayboardListing.find({ ownerId }),
   ]);
 
@@ -24,18 +24,23 @@ export const handler = async (event: APIGatewayProxyEvent) => {
   const checkoutsToday = bookings.filter((b) => b.checkOutDate === today);
   const upcoming = bookings.filter((b) => b.checkInDate > today && b.checkInDate <= in7Days);
 
-  if (token.role === 'housekeeping') {
-    const taskRows = tasks.filter((t) => {
-      const booking = bookings.find((b) => String(b._id) === String(t.bookingId));
-      return booking?.checkOutDate === today;
-    }).map((t) => ({
+  const allowedStatuses = token.role === 'housekeeping'
+    ? ['pending', 'in_progress', 'completed']
+    : ['pending', 'in_progress', 'completed', 'skipped'];
+
+  const taskRows = tasks
+    .filter((t) => allowedStatuses.includes(t.status))
+    .map((t) => ({
       _id: t._id,
       taskId: t._id,
       roomName: t.roomName,
-      checkoutDate: today,
+      checkoutDate: t.dueDate,
       listingName: listings.find((l) => String(l._id) === String(t.listingId))?.name || 'Listing',
       status: t.status,
+      checklist: t.checklist,
     }));
+
+  if (token.role === 'housekeeping') {
     return appResponse(200, { tasks: taskRows });
   }
 
@@ -56,9 +61,10 @@ export const handler = async (event: APIGatewayProxyEvent) => {
       occupiedNow: occupied.length,
       checkInsToday: checkinsToday.length,
       checkOutsToday: checkoutsToday.length,
-      needCleaning: tasks.length,
+      needCleaning: taskRows.filter((t) => t.status === 'pending' || t.status === 'in_progress').length,
       upcoming: upcoming.length,
     },
+    tasks: taskRows,
     occupancy,
     revenue: { bookings: bookings.length, roomNights, amount: revenue },
   });
