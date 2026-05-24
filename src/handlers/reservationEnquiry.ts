@@ -34,6 +34,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     const email = correctEmailExtension(body.email || "");
 
     const enquiry: ReservationEnquiry = {
+      property: body?.property || "general",
       name: body.name,
       phone: body.phone,
       email,
@@ -47,7 +48,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       return sendResponse(
         200,
         "Reservation enquiry already exists",
-        existingEnquiry
+        existingEnquiry,
       );
     }
 
@@ -64,13 +65,13 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     console.log("emailSent", emailSent);
 
     if (body.email) {
-      const adminEmailSent = await sendEmail({
+      const guestEmailSent = await sendEmail({
         to: [email],
         subject: getGuestEmailSubject(),
         body: getGuestEmailBody(enquiry),
         from: FROM_EMAIL,
       });
-      console.log("adminEmailSent", adminEmailSent);
+      console.log("guestEmailSent", guestEmailSent);
     }
 
     return sendResponse(201, "Reservation enquiry received", enquiryCreated);

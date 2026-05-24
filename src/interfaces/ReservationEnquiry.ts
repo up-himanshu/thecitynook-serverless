@@ -1,31 +1,27 @@
 import { Document } from "mongoose";
 
-export interface ReservationEnquiryRequest {
+export interface ReservationEnquiry {
+  property: string;
   name: string;
   phone: string;
   email?: string;
   dateFrom: string;
   dateTo: string;
-  guestCount: number;
+  guestCount?: number;
+}
+
+export interface ReservationEnquiryRequest extends ReservationEnquiry {
   recaptchaToken: string;
 }
 
-export interface ReservationEnquiry {
-  name: string;
-  phone: string;
-  email?: string;
-  dateFrom: string;
-  dateTo: string;
-  guestCount: number;
-}
-
 export interface IEnquiry extends Document {
+  property: string;
   name: string;
   phone: string;
   email?: string;
   dateFrom: string;
   dateTo: string;
-  guestCount: number;
+  guestCount?: number;
   createdAt: Date;
   updatedAt: Date;
 }

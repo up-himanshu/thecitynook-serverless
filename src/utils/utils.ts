@@ -53,8 +53,8 @@ export const sendEmail = async ({
       },
       Source: from,
     });
-
-    await ses.send(command);
+    if (process.env.NODE_ENV !== "local") await ses.send(command);
+    else console.log(`Email sent with subject - ${subject}`, body);
     return true;
   } catch (error) {
     console.error("Error sending email:", error);
@@ -102,13 +102,24 @@ export const sendResponse = async (
 
 export const getEmailBody = (body: any, heading: string = "") => {
   const nights = moment(body.dateTo).diff(body.dateFrom, "days");
-  return `<h1>${heading || "New Reservation Enquiry"}</h1>
+  return `<h1>${heading || "New Reservation Enquiry"} - ${body.property}</h1>
           <p>Duration: ${body.dateFrom} to ${body.dateTo}</p>
           <p>Name: ${body.name}</p>
           <p>Phone: ${body.phone}</p>
           <p>Email: ${body.email}</p>
-          <p>Guest Count: ${body.guestCount}</p>
+          <p>Guest Count: ${body.guestCount || "NOT PROVIDED"}</p>
           <p>Nights: ${nights}</p>`;
+};
+
+export const getSendMessageBody = (body: any) => {
+  return `<h1>Message sent from Website - ${body.subject} - ${
+    body.property
+  }</h1>
+          <p>Message: ${body.message}</p><br /><br />
+          <p>From:</p>
+          <p>Name: ${body.name || "NOT PROVIDED"}</p>
+          <p>Email: ${body.email || "NOT PROVIDED"}</p>
+          <p>Phone: ${body.phone || "NOT PROVIDED"}</p>`;
 };
 
 export const getEmailSubject = (body: any) => {
@@ -136,9 +147,9 @@ export const getGuestEmailBody = (body: any) => {
         ).format("DD MMM YYYY")}</p>
         <p style="margin: 5px 0;"><strong>Number of Nights:</strong> ${nights}</p>
         <p style="margin: 5px 0;"><strong>Number of Guests:</strong> ${
-          body.guestCount
+          body.guestCount || "NOT PROVIDED"
         }</p>
-        <p style="margin: 5px 0;"><strong>Special Offer:</strong> <span style="text-decoration: line-through;">₹2,200</span> <span style="color: #e74c3c;">₹1,500</span> per night</p>
+        <p style="margin: 5px 0;"><strong>Special Offer:</strong> <span style="text-decoration: line-through;">₹2,500</span> <span style="color: #e74c3c;">₹2,000</span> per night</p>
       </div>
 
       <p style="color: #34495e;">What happens next?</p>
@@ -178,10 +189,12 @@ export const validateReservationEnquiry = async (
 ): Promise<string> => {
   let result = "";
 
-  // if (!body.recaptchaToken) result = "reCAPTCHA token is required";
+  if (process.env.NODE_ENV !== "local" && !body.recaptchaToken)
+    result = "reCAPTCHA token is required";
 
-  // const isRecaptchaValid = await verifyRecaptcha(body.recaptchaToken);
-  // if (!isRecaptchaValid) result = "reCAPTCHA verification failed";
+  const isRecaptchaValid = await verifyRecaptcha(body.recaptchaToken);
+  if (process.env.NODE_ENV !== "local" && !isRecaptchaValid)
+    result = "reCAPTCHA verification failed";
 
   if (!body.name) result = "Name is required";
 
@@ -190,8 +203,6 @@ export const validateReservationEnquiry = async (
   if (!body.dateFrom) result = "Date from is required";
 
   if (!body.dateTo) result = "Date to is required";
-
-  if (!body.guestCount) result = "Guest count is required";
 
   return result;
 };
@@ -235,7 +246,7 @@ const parseBlockedDates = (icalString: any) => {
 const getBlockedDatesFromUrl = async (url: string): Promise<any> => {
   try {
     const response = await axios.get(url);
-    return parseBlockedDates(response.data); 
+    return parseBlockedDates(response.data);
   } catch (error) {
     throw error;
   }
@@ -272,7 +283,7 @@ export const syncBlockedDatesFromCalendar = async (): Promise<boolean> => {
     console.error("Error syncing blocked dates:", error);
     return false;
   }
-}
+};
 
 export const syncBlockedDatesFromCalendar2 = async (): Promise<boolean> => {
   console.log("syncBlockedDatesFromCalendar start");

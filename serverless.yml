@@ -2,10 +2,12 @@ service: thecitynook-serverless
 
 provider:
   name: aws
-  runtime: nodejs18.x
+  runtime: nodejs22.x
   stage: ${opt:stage}
   region: ${opt:region}
   profile: hoistin
+  environment:
+    DB_CONNECTION_STRING: ${self:custom.dbConnectionMap.${opt:stage}, ''}
   httpApi:
     cors:
       allowedOrigins:
@@ -23,7 +25,18 @@ provider:
 
 plugins:
   - serverless-offline
-  - serverless-plugin-typescript
+
+custom:
+  dbConnectionMap:
+    local: ${env:DB_CONNECTION_STRING}
+
+build:
+  esbuild:
+    bundle: true
+    minify: false
+    sourcemap: true
+    target: node18
+    platform: node
 
 functions:
   hello:
@@ -53,6 +66,7 @@ functions:
           method: options
   preflightReservationEnquiry:
     handler: src/handlers/preflight.handler
+    timeout: 30
     events:
       - httpApi:
           path: /reservation-enquiry
@@ -126,4 +140,130 @@ functions:
     events:
       - httpApi:
           path: /enquiries
+          method: options
+  sendMessage:
+    handler: src/handlers/sendMessage.handler
+    events:
+      - httpApi:
+          path: /send-message
+          method: post
+  preflightSendMessage:
+    handler: src/handlers/preflight.handler
+    events:
+      - httpApi:
+          path: /send-message
+          method: options
+  appLogin:
+    handler: src/handlers/stayboard/login.handler
+    events:
+      - httpApi:
+          path: /api/app/auth/login
+          method: post
+  appSignup:
+    handler: src/handlers/stayboard/signup.handler
+    events:
+      - httpApi:
+          path: /api/app/auth/signup
+          method: post
+  appMe:
+    handler: src/handlers/stayboard/users.meHandler
+    events:
+      - httpApi:
+          path: /api/app/me
+          method: get
+  appStaffList:
+    handler: src/handlers/stayboard/users.listStaffHandler
+    events:
+      - httpApi:
+          path: /api/app/staff
+          method: get
+  appStaffCreate:
+    handler: src/handlers/stayboard/users.createStaffHandler
+    events:
+      - httpApi:
+          path: /api/app/staff
+          method: post
+  appRegisterDevice:
+    handler: src/handlers/stayboard/registerDevice.handler
+    events:
+      - httpApi:
+          path: /api/app/devices/register
+          method: post
+  appDashboard:
+    handler: src/handlers/stayboard/dashboard.handler
+    events:
+      - httpApi:
+          path: /api/app/dashboard
+          method: get
+  appListingsGet:
+    handler: src/handlers/stayboard/listings.getHandler
+    events:
+      - httpApi:
+          path: /api/app/listings
+          method: get
+  appListingsPost:
+    handler: src/handlers/stayboard/listings.postHandler
+    events:
+      - httpApi:
+          path: /api/app/listings
+          method: post
+  appListingChecklistUpdate:
+    handler: src/handlers/stayboard/listings.updateChecklistHandler
+    events:
+      - httpApi:
+          path: /api/app/listings/{id}/checklist
+          method: put
+  appListingChecklistCopy:
+    handler: src/handlers/stayboard/listings.copyChecklistHandler
+    events:
+      - httpApi:
+          path: /api/app/listings/{id}/checklist/copy
+          method: post
+  appListingDetail:
+    handler: src/handlers/stayboard/listingDetail.handler
+    events:
+      - httpApi:
+          path: /api/app/listings/{id}
+          method: get
+  appBookingsPost:
+    handler: src/handlers/stayboard/bookings.postHandler
+    events:
+      - httpApi:
+          path: /api/app/bookings
+          method: post
+  appBookingLookupPhone:
+    handler: src/handlers/stayboard/bookings.lookupByPhoneHandler
+    events:
+      - httpApi:
+          path: /api/app/bookings/lookup
+          method: get
+  appHousekeepingComplete:
+    handler: src/handlers/stayboard/housekeeping.submitTaskHandler
+    events:
+      - httpApi:
+          path: /api/app/housekeeping/complete
+          method: post
+  appHousekeepingTasks:
+    handler: src/handlers/stayboard/housekeeping.listTasksHandler
+    events:
+      - httpApi:
+          path: /api/app/housekeeping/tasks
+          method: get
+  appHousekeepingTaskStart:
+    handler: src/handlers/stayboard/housekeeping.startTaskHandler
+    events:
+      - httpApi:
+          path: /api/app/housekeeping/tasks/{taskId}/start
+          method: post
+  appHousekeepingTaskSubmit:
+    handler: src/handlers/stayboard/housekeeping.submitTaskHandler
+    events:
+      - httpApi:
+          path: /api/app/housekeeping/tasks/{taskId}/submit
+          method: post
+  appPreflight:
+    handler: src/handlers/preflight.handler
+    events:
+      - httpApi:
+          path: /api/app/{proxy+}
           method: options
