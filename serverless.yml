@@ -12,6 +12,9 @@ provider:
     SES_ACCESS_KEY: ${env:SES_ACCESS_KEY}
     SES_REGION: ${env:SES_REGION}
     RECAPTCHA_SECRET_KEY: ${env:RECAPTCHA_SECRET_KEY}
+    PORT: ${env:PORT}
+    AWS_PROFILE: ${env:AWS_PROFILE}
+    NODE_ENV: ${env:NODE_ENV}
   httpApi:
     cors:
       allowedOrigins:
