@@ -37,6 +37,7 @@ const shiftNextDayCheckoutTaskToToday = async ({
 
   const existingTask = await StayboardHousekeepingTask.findOne({
     bookingId: existingBooking._id,
+    isActive: { $ne: false },
     status: 'pending',
   });
   if (!existingTask) return;
@@ -63,7 +64,7 @@ const createTaskForBooking = async ({
     .map((item: string) => ({ item, answer: null }));
 
   return StayboardHousekeepingTask.findOneAndUpdate(
-    { bookingId, dueDate, status: 'pending' },
+    { bookingId, dueDate, status: 'pending', isActive: { $ne: false } },
     {
       ownerId,
       listingId: listing._id,
@@ -127,7 +128,7 @@ export const postHandler = async (event: APIGatewayProxyEvent) => {
     return appResponse(400, {}, 'phone must be a 10 digit number');
   }
 
-  const listing = await StayboardListing.findOne({ _id: listingId, ownerId: token.userId });
+  const listing = await StayboardListing.findOne({ _id: listingId, ownerId: token.userId, isActive: { $ne: false } });
   if (!listing) return appResponse(404, {}, 'Listing not found');
 
   const file = parsed.files?.find((f: any) => f.fieldname === 'idPhoto');
@@ -202,7 +203,7 @@ export const extendBookingHandler = async (event: APIGatewayProxyEvent) => {
     return appResponse(400, {}, 'newCheckoutDate must be greater than current checkout date');
   }
 
-  const listing = await StayboardListing.findOne({ _id: oldBooking.listingId, ownerId: token.userId });
+  const listing = await StayboardListing.findOne({ _id: oldBooking.listingId, ownerId: token.userId, isActive: { $ne: false } });
   if (!listing) return appResponse(404, {}, 'Listing not found');
 
   const newBooking = await StayboardBooking.create({
@@ -219,7 +220,7 @@ export const extendBookingHandler = async (event: APIGatewayProxyEvent) => {
 
   if (skipHousekeeping) {
     await StayboardHousekeepingTask.findOneAndUpdate(
-      { bookingId: oldBooking._id },
+      { bookingId: oldBooking._id, isActive: { $ne: false } },
       { status: 'skipped' },
     );
   }
@@ -272,7 +273,7 @@ export const createHousekeepingTaskHandler = async (event: APIGatewayProxyEvent)
     return appResponse(400, {}, 'Manual housekeeping task allowed only when booking checkout date is in future');
   }
 
-  const listing = await StayboardListing.findOne({ _id: booking.listingId, ownerId: token.userId });
+  const listing = await StayboardListing.findOne({ _id: booking.listingId, ownerId: token.userId, isActive: { $ne: false } });
   if (!listing) return appResponse(404, {}, 'Listing not found');
 
   const housekeepingTask = await createManualTaskForBooking({

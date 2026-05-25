@@ -15,6 +15,7 @@ export interface IStayboardHousekeepingTask extends Document {
   completedById?: string;
   taskCompletedAt?: Date;
   durationMinutes?: number;
+  isActive: boolean;
 }
 
 const schema = new Schema<IStayboardHousekeepingTask>({
@@ -31,6 +32,7 @@ const schema = new Schema<IStayboardHousekeepingTask>({
   completedById: { type: Schema.Types.ObjectId, ref: 'StayboardUser' },
   taskCompletedAt: { type: Date },
   durationMinutes: { type: Number },
+  isActive: { type: Boolean, default: true },
 }, { timestamps: true, collection: 'stayboard_housekeeping_tasks' });
 
 export default mongoose.model<IStayboardHousekeepingTask>('StayboardHousekeepingTask', schema);

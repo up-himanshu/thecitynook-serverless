@@ -8,6 +8,7 @@ export interface IStayboardListing extends Document {
   checkInTime: string;
   checkOutTime: string;
   checklist: string[];
+  isActive: boolean;
 }
 
 const schema = new Schema<IStayboardListing>(
@@ -22,6 +23,7 @@ const schema = new Schema<IStayboardListing>(
     checkInTime: { type: String, required: true, default: "13:00" },
     checkOutTime: { type: String, required: true, default: "10:00" },
     checklist: [{ type: String }],
+    isActive: { type: Boolean, default: true },
   },
   { timestamps: true, collection: "stayboard_listings" },
 );

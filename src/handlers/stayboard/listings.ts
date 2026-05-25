@@ -1,6 +1,7 @@
 import { APIGatewayProxyEvent } from "aws-lambda";
 import moment from "moment";
 import StayboardBooking from "../../models/stayboard/Booking";
+import StayboardHousekeepingTask from "../../models/stayboard/HousekeepingTask";
 import StayboardListing from "../../models/stayboard/Listing";
 import { parseToken } from "../../utils/stayboard/auth";
 import { appResponse } from "../../utils/stayboard/response";
@@ -20,7 +21,7 @@ export const getHandler = async (event: APIGatewayProxyEvent) => {
   const ownerId = token.role === "owner" ? token.userId : token.ownerId;
   const today = moment().format("YYYY-MM-DD");
   const [listings, bookings] = await Promise.all([
-    StayboardListing.find({ ownerId }),
+    StayboardListing.find({ ownerId, isActive: { $ne: false } }),
     StayboardBooking.find({ ownerId, checkOutDate: { $gte: today } }).sort({ checkInDate: 1 }),
   ]);
 
@@ -82,7 +83,7 @@ export const updateChecklistHandler = async (event: APIGatewayProxyEvent) => {
 
   const cleaned = checklist.map((v) => String(v).trim()).filter(Boolean);
   const listing = await StayboardListing.findOneAndUpdate(
-    { _id: listingId, ownerId: token.userId },
+    { _id: listingId, ownerId: token.userId, isActive: { $ne: false } },
     { checklist: cleaned },
     { new: true },
   );
@@ -107,11 +108,12 @@ export const copyChecklistHandler = async (event: APIGatewayProxyEvent) => {
   const source = await StayboardListing.findOne({
     _id: sourceListingId,
     ownerId: token.userId,
+    isActive: { $ne: false },
   });
   if (!source) return appResponse(404, {}, "Source listing not found");
 
   const result = await StayboardListing.updateMany(
-    { _id: { $in: targetListingIds }, ownerId: token.userId },
+    { _id: { $in: targetListingIds }, ownerId: token.userId, isActive: { $ne: false } },
     { $set: { checklist: source.checklist || [] } },
   );
 
@@ -120,4 +122,45 @@ export const copyChecklistHandler = async (event: APIGatewayProxyEvent) => {
     { modifiedCount: result.modifiedCount },
     "Checklist copied",
   );
+};
+
+export const deleteHandler = async (event: APIGatewayProxyEvent) => {
+  const token = parseToken(event);
+  if (!token) return appResponse(401, {}, "Unauthorized");
+  if (token.role !== "owner") return appResponse(403, {}, "Forbidden");
+
+  const listingId = event.pathParameters?.id;
+  if (!listingId) return appResponse(400, {}, "listingId is required");
+
+  const listing = await StayboardListing.findOne({
+    _id: listingId,
+    ownerId: token.userId,
+  });
+  if (!listing) return appResponse(404, {}, "Listing not found");
+
+  const bookingsCount = await StayboardBooking.countDocuments({
+    listingId,
+    ownerId: token.userId,
+  });
+
+  if (bookingsCount === 0) {
+    await Promise.all([
+      StayboardHousekeepingTask.deleteMany({ listingId, ownerId: token.userId }),
+      StayboardListing.deleteOne({ _id: listingId, ownerId: token.userId }),
+    ]);
+    return appResponse(200, { listingId, deletionType: "hard" }, "Listing deleted");
+  }
+
+  await Promise.all([
+    StayboardHousekeepingTask.updateMany(
+      { listingId, ownerId: token.userId },
+      { $set: { isActive: false } },
+    ),
+    StayboardListing.updateOne(
+      { _id: listingId, ownerId: token.userId },
+      { $set: { isActive: false } },
+    ),
+  ]);
+
+  return appResponse(200, { listingId, deletionType: "soft" }, "Listing deactivated");
 };

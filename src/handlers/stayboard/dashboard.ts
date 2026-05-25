@@ -15,8 +15,8 @@ export const handler = async (event: APIGatewayProxyEvent) => {
 
   const [bookings, tasks, listings] = await Promise.all([
     StayboardBooking.find({ ownerId }),
-    StayboardHousekeepingTask.find({ ownerId, dueDate: today }).sort({ createdAt: 1 }),
-    StayboardListing.find({ ownerId }),
+    StayboardHousekeepingTask.find({ ownerId, dueDate: today, isActive: { $ne: false } }).sort({ createdAt: 1 }),
+    StayboardListing.find({ ownerId, isActive: { $ne: false } }),
   ]);
 
   const occupied = bookings.filter((b) => b.checkInDate <= today && b.checkOutDate > today);

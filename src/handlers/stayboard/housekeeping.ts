@@ -20,6 +20,7 @@ export const listTasksHandler = async (event: APIGatewayProxyEvent) => {
   const tasks = await StayboardHousekeepingTask.find({
     ownerId,
     dueDate,
+    isActive: { $ne: false },
     status: statusFilter,
   }).sort({ createdAt: 1 });
 
@@ -32,7 +33,7 @@ export const startTaskHandler = async (event: APIGatewayProxyEvent) => {
   const taskId = event.pathParameters?.taskId;
   if (!taskId) return appResponse(400, {}, 'taskId is required');
 
-  const task = await StayboardHousekeepingTask.findById(taskId);
+  const task = await StayboardHousekeepingTask.findOne({ _id: taskId, isActive: { $ne: false } });
   if (!task) return appResponse(404, {}, 'Task not found');
   if (task.status === 'completed' || task.status === 'skipped') {
     return appResponse(400, {}, 'Task cannot be started from current status');
@@ -69,7 +70,7 @@ export const submitTaskHandler = async (event: APIGatewayProxyEvent) => {
     return appResponse(400, {}, 'All checklist items must be answered yes/no');
   }
 
-  const existingTask = await StayboardHousekeepingTask.findById(taskId);
+  const existingTask = await StayboardHousekeepingTask.findOne({ _id: taskId, isActive: { $ne: false } });
   if (!existingTask) return appResponse(404, {}, 'Task not found');
 
   if (existingTask.status === 'skipped') {
@@ -86,8 +87,8 @@ export const submitTaskHandler = async (event: APIGatewayProxyEvent) => {
   const startedAt = existingTask.taskStartedAt || now;
   const durationMinutes = Math.max(1, Math.round((now.getTime() - startedAt.getTime()) / 60000));
 
-  const task = await StayboardHousekeepingTask.findByIdAndUpdate(
-    taskId,
+  const task = await StayboardHousekeepingTask.findOneAndUpdate(
+    { _id: taskId, isActive: { $ne: false } },
     {
       checklist,
       remarks,
@@ -122,8 +123,8 @@ export const skipTaskHandler = async (event: APIGatewayProxyEvent) => {
   const taskId = event.pathParameters?.taskId;
   if (!taskId) return appResponse(400, {}, 'taskId is required');
 
-  const task = await StayboardHousekeepingTask.findByIdAndUpdate(
-    taskId,
+  const task = await StayboardHousekeepingTask.findOneAndUpdate(
+    { _id: taskId, isActive: { $ne: false } },
     { status: 'skipped' },
     { new: true },
   );

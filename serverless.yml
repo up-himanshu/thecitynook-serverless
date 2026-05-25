@@ -232,6 +232,12 @@ functions:
       - httpApi:
           path: /api/app/listings/{id}
           method: get
+  appListingDelete:
+    handler: src/handlers/stayboard/listings.deleteHandler
+    events:
+      - httpApi:
+          path: /api/app/listings/{id}
+          method: delete
   appBookingsPost:
     handler: src/handlers/stayboard/bookings.postHandler
     events:

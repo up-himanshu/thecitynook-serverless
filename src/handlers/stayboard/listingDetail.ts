@@ -11,12 +11,17 @@ export const handler = async (event: APIGatewayProxyEvent) => {
   if (!token) return appResponse(401, {}, 'Unauthorized');
   const ownerId = token.role === 'owner' ? token.userId : token.ownerId;
   const id = event.pathParameters?.id;
-  const listing = await StayboardListing.findOne({ _id: id, ownerId });
+  const listing = await StayboardListing.findOne({ _id: id, ownerId, isActive: { $ne: false } });
   if (!listing) return appResponse(404, {}, 'Listing not found');
 
   const [bookings, completedTasks] = await Promise.all([
     StayboardBooking.find({ listingId: id, ownerId }).sort({ checkInDate: 1 }),
-    StayboardHousekeepingTask.find({ listingId: id, ownerId, status: { $in: ['completed', 'skipped'] } }).sort({ taskCompletedAt: -1 }).limit(30),
+    StayboardHousekeepingTask.find({
+      listingId: id,
+      ownerId,
+      isActive: { $ne: false },
+      status: { $in: ['completed', 'skipped'] },
+    }).sort({ taskCompletedAt: -1 }).limit(30),
   ]);
 
   const staffIds = completedTasks.map((t) => String(t.completedById || '')).filter(Boolean);
