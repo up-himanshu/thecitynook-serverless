@@ -2,6 +2,7 @@ import { APIGatewayProxyEvent } from 'aws-lambda';
 import moment from 'moment';
 import StayboardHousekeepingTask from '../../models/stayboard/HousekeepingTask';
 import StayboardDevice from '../../models/stayboard/Device';
+import StayboardUser from '../../models/stayboard/User';
 import { parseToken } from '../../utils/stayboard/auth';
 import { appResponse } from '../../utils/stayboard/response';
 import { sendPushNotifications } from '../../utils/stayboard/push';
@@ -48,6 +49,28 @@ export const startTaskHandler = async (event: APIGatewayProxyEvent) => {
     task.taskStartedAt = new Date();
     task.startedById = token.userId;
     await task.save();
+
+    try {
+      const [staffUser, ownerUsers] = await Promise.all([
+        StayboardUser.findById(token.userId).select('displayName fullName'),
+        StayboardUser.find({
+          role: 'owner',
+          $or: [{ _id: task.ownerId }, { ownerId: task.ownerId }],
+        }).select('_id'),
+      ]);
+      const staffName = staffUser?.displayName || staffUser?.fullName || 'A staff member';
+      const ownerIds = ownerUsers.map((owner) => String(owner._id));
+      if (ownerIds.length) {
+        const ownerDevices = await StayboardDevice.find({ userId: { $in: ownerIds } });
+        await sendPushNotifications(
+          ownerDevices.map((d) => d.pushToken),
+          'Housekeeping started',
+          `${staffName} has started housekeeping on property ${task.roomName}`,
+        );
+      }
+    } catch (error) {
+      console.error('Unable to send owner start push notifications:', error);
+    }
   }
 
   return appResponse(200, { task }, 'Task started');
@@ -102,12 +125,23 @@ export const submitTaskHandler = async (event: APIGatewayProxyEvent) => {
 
   if (!task) return appResponse(404, {}, 'Task not found');
 
-  const ownerDevices = await StayboardDevice.find({});
   try {
+    const [staffUser, ownerUsers] = await Promise.all([
+      StayboardUser.findById(token.userId).select('displayName fullName'),
+      StayboardUser.find({
+        role: 'owner',
+        $or: [{ _id: task.ownerId }, { ownerId: task.ownerId }],
+      }).select('_id'),
+    ]);
+    const staffName = staffUser?.displayName || staffUser?.fullName || 'A staff member';
+    const ownerIds = ownerUsers.map((owner) => String(owner._id));
+    const ownerDevices = ownerIds.length
+      ? await StayboardDevice.find({ userId: { $in: ownerIds } })
+      : [];
     await sendPushNotifications(
       ownerDevices.map((d) => d.pushToken),
       'Housekeeping completed',
-      `${task.roomName} cleaned and checklist submitted`,
+      `${staffName} has completed housekeeping on property ${task.roomName}`,
     );
   } catch (error) {
     console.error('Unable to send owner completion push notifications:', error);
@@ -131,4 +165,33 @@ export const skipTaskHandler = async (event: APIGatewayProxyEvent) => {
   if (!task) return appResponse(404, {}, 'Task not found');
 
   return appResponse(200, { task }, 'Task skipped');
+};
+
+export const dailyReminderHandler = async () => {
+  const dueDate = moment.utc().format('YYYY-MM-DD');
+
+  const staffUsers = await StayboardUser.find({ role: 'housekeeping' }).select('_id ownerId');
+  for (const staffUser of staffUsers) {
+    const ownerId = String(staffUser.ownerId || '');
+    if (!ownerId) continue;
+
+    const dueCount = await StayboardHousekeepingTask.countDocuments({
+      ownerId,
+      dueDate,
+      isActive: { $ne: false },
+      status: { $in: ['pending', 'in_progress'] },
+    });
+    if (!dueCount) continue;
+
+    const staffDevices = await StayboardDevice.find({ userId: String(staffUser._id) });
+    if (!staffDevices.length) continue;
+
+    await sendPushNotifications(
+      staffDevices.map((d) => d.pushToken),
+      'Housekeeping reminder',
+      `You have ${dueCount} housekeeping tasks due today.`,
+    );
+  }
+
+  return appResponse(200, { dueDate }, 'Daily housekeeping reminders processed');
 };

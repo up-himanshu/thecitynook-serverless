@@ -1,9 +1,6 @@
 import mongoose from "mongoose";
 
-const password = encodeURIComponent("oHo1E4u3dM9NaNrE");
-const mongoUri =
-  process.env.DB_CONNECTION_STRING ??
-  `mongodb+srv://erastha2008:${password}@clustertcn.ttydv.mongodb.net/thecitynook?retryWrites=true&w=majority&appName=ClusterTCN`;
+const mongoUri = process.env.DB_CONNECTION_STRING;
 
 // Connect to MongoDB
 mongoose.connect(mongoUri);

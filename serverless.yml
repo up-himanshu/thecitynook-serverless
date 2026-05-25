@@ -19,6 +19,9 @@ provider:
     STAYBOARD_AWS_REGION: ${env:STAYBOARD_AWS_REGION}
     STAYBOARD_AWS_ACCESS_KEY_ID: ${env:STAYBOARD_AWS_ACCESS_KEY_ID}
     STAYBOARD_AWS_SECRET_ACCESS_KEY: ${env:STAYBOARD_AWS_SECRET_ACCESS_KEY}
+    STAYBOARD_FIREBASE_PROJECT_ID: ${env:STAYBOARD_FIREBASE_PROJECT_ID}
+    STAYBOARD_FIREBASE_CLIENT_EMAIL: ${env:STAYBOARD_FIREBASE_CLIENT_EMAIL}
+    STAYBOARD_FIREBASE_PRIVATE_KEY: ${env:STAYBOARD_FIREBASE_PRIVATE_KEY}
   httpApi:
     cors:
       allowedOrigins:
@@ -296,6 +299,12 @@ functions:
       - httpApi:
           path: /api/app/housekeeping/tasks/{taskId}/skip
           method: post
+  appHousekeepingDailyReminder:
+    handler: src/handlers/stayboard/housekeeping.dailyReminderHandler
+    events:
+      - schedule:
+          rate: cron(30 2 * * ? *)
+          enabled: true
   appPreflight:
     handler: src/handlers/preflight.handler
     events:
