@@ -10,7 +10,7 @@ const client = new S3Client({
 });
 
 export const uploadGuestIdPhoto = async (buffer: Buffer, ownerId: string) => {
-  const resized = await sharp(buffer).resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer();
+  const resized = await sharp(buffer).jpeg({ quality: 55, mozjpeg: true }).toBuffer();
   const key = `stayboard/${ownerId}/${Date.now()}-id.jpg`;
   const bucket = process.env.STAYBOARD_S3_BUCKET as string;
 

@@ -12,6 +12,7 @@ export interface IStayboardBooking extends Document {
   amount: number;
   notes?: string;
   idPhotoUrl?: string;
+  idPhotoUrls?: string[];
 }
 
 const schema = new Schema<IStayboardBooking>({
@@ -25,6 +26,7 @@ const schema = new Schema<IStayboardBooking>({
   amount: { type: Number, required: true },
   notes: { type: String },
   idPhotoUrl: { type: String },
+  idPhotoUrls: [{ type: String }],
 }, { timestamps: true, collection: 'stayboard_bookings' });
 
 export default mongoose.model<IStayboardBooking>('StayboardBooking', schema);

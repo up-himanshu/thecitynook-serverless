@@ -7,7 +7,7 @@ provider:
   region: ${opt:region}
   profile: hoistin
   environment:
-    DB_CONNECTION_STRING: ${self:custom.dbConnectionMap.${opt:stage}, ''}
+    DB_CONNECTION_STRING: ${env:DB_CONNECTION_STRING}
     SES_KEY: ${env:SES_KEY}
     SES_ACCESS_KEY: ${env:SES_ACCESS_KEY}
     SES_REGION: ${env:SES_REGION}
@@ -40,17 +40,15 @@ provider:
 plugins:
   - serverless-offline
 
-custom:
-  dbConnectionMap:
-    local: ${env:DB_CONNECTION_STRING}
-
 build:
   esbuild:
     bundle: true
     minify: false
     sourcemap: true
-    target: node18
+    target: node22
     platform: node
+    external:
+      - sharp
 
 functions:
   hello:

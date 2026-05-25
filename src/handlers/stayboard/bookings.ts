@@ -10,6 +10,11 @@ import { appResponse } from '../../utils/stayboard/response';
 import { uploadGuestIdPhoto } from '../../utils/stayboard/s3';
 import { sendPushNotifications } from '../../utils/stayboard/push';
 
+type IdPhotoPayloadItem = {
+  base64: string;
+  mimeType?: string;
+};
+
 const defaultChecklist = ['Bed changed', 'Bathroom cleaned', 'Towels replaced', 'Dusting done', 'Water bottles refilled', 'TV checked'];
 const shouldCreateTaskForDueDate = (dueDate: string) => dueDate >= moment().format('YYYY-MM-DD');
 const calculateNights = (checkInDate: string, checkOutDate: string) =>
@@ -132,16 +137,33 @@ export const postHandler = async (event: APIGatewayProxyEvent) => {
   if (!listing) return appResponse(404, {}, 'Listing not found');
 
   const file = parsed.files?.find((f: any) => f.fieldname === 'idPhoto');
-  let idPhotoUrl: string | undefined;
+  const idPhotoUrls: string[] = [];
   if (file?.content) {
-    idPhotoUrl = await uploadGuestIdPhoto(file.content, token.userId);
+    idPhotoUrls.push(await uploadGuestIdPhoto(file.content, token.userId));
   } else {
+    const idPhotoPayloadRaw = String(parsed.idPhotoPayload || '').trim();
+    if (idPhotoPayloadRaw) {
+      try {
+        const idPhotoPayload = JSON.parse(idPhotoPayloadRaw) as IdPhotoPayloadItem[];
+        const uptoTwelve = idPhotoPayload.slice(0, 12);
+        for (const photo of uptoTwelve) {
+          const sanitized = String(photo.base64 || '').replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '');
+          const decoded = Buffer.from(sanitized, 'base64');
+          if (decoded.length > 0) {
+            idPhotoUrls.push(await uploadGuestIdPhoto(decoded, token.userId));
+          }
+        }
+      } catch {
+        return appResponse(400, {}, 'Invalid idPhotoPayload');
+      }
+    }
+
     const idPhotoBase64 = String(parsed.idPhotoBase64 || '').trim();
-    if (idPhotoBase64) {
+    if (idPhotoUrls.length === 0 && idPhotoBase64) {
       const sanitized = idPhotoBase64.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '');
       const decoded = Buffer.from(sanitized, 'base64');
       if (decoded.length > 0) {
-        idPhotoUrl = await uploadGuestIdPhoto(decoded, token.userId);
+        idPhotoUrls.push(await uploadGuestIdPhoto(decoded, token.userId));
       }
     }
   }
@@ -156,7 +178,8 @@ export const postHandler = async (event: APIGatewayProxyEvent) => {
     nights: calculateNights(checkInDate, checkOutDate),
     amount: Number(parsed.amount || 0),
     notes: parsed.notes,
-    idPhotoUrl,
+    idPhotoUrl: idPhotoUrls[0],
+    idPhotoUrls: idPhotoUrls.length ? idPhotoUrls : undefined,
   });
 
   const task = shouldCreateTaskForDueDate(checkOutDate)
