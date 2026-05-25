@@ -135,6 +135,15 @@ export const postHandler = async (event: APIGatewayProxyEvent) => {
   let idPhotoUrl: string | undefined;
   if (file?.content) {
     idPhotoUrl = await uploadGuestIdPhoto(file.content, token.userId);
+  } else {
+    const idPhotoBase64 = String(parsed.idPhotoBase64 || '').trim();
+    if (idPhotoBase64) {
+      const sanitized = idPhotoBase64.replace(/^data:image\/[a-zA-Z0-9+.-]+;base64,/, '');
+      const decoded = Buffer.from(sanitized, 'base64');
+      if (decoded.length > 0) {
+        idPhotoUrl = await uploadGuestIdPhoto(decoded, token.userId);
+      }
+    }
   }
 
   const booking = await StayboardBooking.create({

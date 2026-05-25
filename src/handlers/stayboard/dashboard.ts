@@ -44,8 +44,48 @@ export const handler = async (event: APIGatewayProxyEvent) => {
     return appResponse(200, { tasks: taskRows });
   }
 
-  const revenue = bookings.reduce((sum, b) => sum + b.amount, 0);
-  const roomNights = bookings.reduce((sum, b) => sum + Math.max(1, moment(b.checkOutDate).diff(moment(b.checkInDate), 'days')), 0);
+  const now = moment();
+  const currentMonthStart = now.clone().startOf('month');
+  const currentMonthEnd = now.clone().startOf('day');
+  const previousMonthStart = now.clone().subtract(1, 'month').startOf('month');
+  const previousMonthComparableEnd = previousMonthStart
+    .clone()
+    .add(Math.min(now.date(), previousMonthStart.daysInMonth()) - 1, 'days')
+    .startOf('day');
+
+  const isBookingInRangeByCheckIn = (checkInDate: string, start: moment.Moment, end: moment.Moment) => {
+    const checkIn = moment(checkInDate, 'YYYY-MM-DD');
+    return checkIn.isValid() && checkIn.isBetween(start, end, 'day', '[]');
+  };
+
+  const countRoomNightsInRange = (checkInDate: string, checkOutDate: string, start: moment.Moment, end: moment.Moment) => {
+    const stayStart = moment(checkInDate, 'YYYY-MM-DD').startOf('day');
+    const stayEndExclusive = moment(checkOutDate, 'YYYY-MM-DD').startOf('day');
+    if (!stayStart.isValid() || !stayEndExclusive.isValid() || !stayEndExclusive.isAfter(stayStart)) return 0;
+
+    const overlapStart = moment.max(stayStart, start);
+    const overlapEndExclusive = moment.min(stayEndExclusive, end.clone().add(1, 'day'));
+    if (!overlapEndExclusive.isAfter(overlapStart)) return 0;
+    return overlapEndExclusive.diff(overlapStart, 'days');
+  };
+
+  const currentMonthBookings = bookings.filter((b) =>
+    isBookingInRangeByCheckIn(b.checkInDate, currentMonthStart, currentMonthEnd),
+  );
+  const previousMonthBookings = bookings.filter((b) =>
+    isBookingInRangeByCheckIn(b.checkInDate, previousMonthStart, previousMonthComparableEnd),
+  );
+
+  const currentMonthRevenue = currentMonthBookings.reduce((sum, b) => sum + b.amount, 0);
+  const previousMonthRevenue = previousMonthBookings.reduce((sum, b) => sum + b.amount, 0);
+  const currentMonthRoomNights = bookings.reduce(
+    (sum, b) => sum + countRoomNightsInRange(b.checkInDate, b.checkOutDate, currentMonthStart, currentMonthEnd),
+    0,
+  );
+  const revenueDiff = currentMonthRevenue - previousMonthRevenue;
+  const revenueDiffPct = previousMonthRevenue === 0
+    ? (currentMonthRevenue > 0 ? 100 : 0)
+    : (revenueDiff / previousMonthRevenue) * 100;
 
   const occupancy = listings.map((listing) => {
     const listingBookings = bookings.filter((b) => String(b.listingId) === String(listing._id));
@@ -66,6 +106,24 @@ export const handler = async (event: APIGatewayProxyEvent) => {
     },
     tasks: taskRows,
     occupancy,
-    revenue: { bookings: bookings.length, roomNights, amount: revenue },
+    month: {
+      bookings: currentMonthBookings.length,
+      roomNights: currentMonthRoomNights,
+      revenue: currentMonthRevenue,
+    },
+    changePastMonth: {
+      currentRevenue: currentMonthRevenue,
+      previousRevenue: previousMonthRevenue,
+      diff: revenueDiff,
+      diffPct: Number(revenueDiffPct.toFixed(2)),
+      currentRange: {
+        from: currentMonthStart.format('YYYY-MM-DD'),
+        to: currentMonthEnd.format('YYYY-MM-DD'),
+      },
+      previousRange: {
+        from: previousMonthStart.format('YYYY-MM-DD'),
+        to: previousMonthComparableEnd.format('YYYY-MM-DD'),
+      },
+    },
   });
 };
