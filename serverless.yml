@@ -267,6 +267,12 @@ functions:
       - httpApi:
           path: /api/app/bookings/{bookingId}/housekeeping-tasks
           method: post
+  appBookingUploadPhoto:
+    handler: src/handlers/stayboard/bookings.uploadBookingPhotoHandler
+    events:
+      - httpApi:
+          path: /api/app/bookings/{bookingId}/photos
+          method: post
   appHousekeepingComplete:
     handler: src/handlers/stayboard/housekeeping.submitTaskHandler
     events:
