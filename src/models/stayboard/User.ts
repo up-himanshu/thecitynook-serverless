@@ -18,7 +18,7 @@ const schema = new Schema<IStayboardUser>(
   {
     fullName: { type: String, required: true },
     displayName: { type: String },
-    email: { type: String, lowercase: true, default: null, sparse: true },
+    email: { type: String, lowercase: true, default: null },
     phone: { type: String, required: true },
     countryCode: {
       type: String,
@@ -35,7 +35,7 @@ const schema = new Schema<IStayboardUser>(
 );
 
 schema.index({ countryCode: 1, phone: 1 }, { unique: true });
-schema.index({ email: 1 }, { unique: true });
+schema.index({ email: 1 }, { unique: true, sparse: true });
 
 schema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();

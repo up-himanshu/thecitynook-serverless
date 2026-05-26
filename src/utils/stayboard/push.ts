@@ -40,7 +40,10 @@ export const sendPushNotifications = async (tokens: string[], title: string, bod
         notification: { title, body },
         android: { priority: 'high' },
         apns: {
-          headers: { 'apns-priority': '10' },
+          headers: {
+            'apns-priority': '10',
+            'apns-push-type': 'alert',
+          },
           payload: { aps: { sound: 'default' } },
         },
       });
