@@ -1,10 +1,14 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
-import StayboardListing from '../../models/stayboard/Listing';
-import StayboardBooking from '../../models/stayboard/Booking';
-import StayboardHousekeepingTask from '../../models/stayboard/HousekeepingTask';
-import StayboardUser from '../../models/stayboard/User';
+import { getStayboardModels } from '../../data/stayboard';
 import { parseToken } from '../../utils/stayboard/auth';
 import { appResponse } from '../../utils/stayboard/response';
+
+const {
+  Listing: StayboardListing,
+  Booking: StayboardBooking,
+  HousekeepingTask: StayboardHousekeepingTask,
+  User: StayboardUser,
+} = getStayboardModels();
 
 export const handler = async (event: APIGatewayProxyEvent) => {
   const token = parseToken(event);

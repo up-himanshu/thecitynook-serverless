@@ -1,4 +1,6 @@
-import StayboardUser from '../../models/stayboard/User';
+import { getStayboardModels } from '../../data/stayboard';
+
+const { User: StayboardUser } = getStayboardModels();
 
 export const ensureDemoUsers = async () => {
   const owner = await StayboardUser.findOne({ countryCode: '91', phone: '9999999999' });

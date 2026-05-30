@@ -22,6 +22,22 @@ provider:
     STAYBOARD_FIREBASE_PROJECT_ID: ${env:STAYBOARD_FIREBASE_PROJECT_ID}
     STAYBOARD_FIREBASE_CLIENT_EMAIL: ${env:STAYBOARD_FIREBASE_CLIENT_EMAIL}
     STAYBOARD_FIREBASE_PRIVATE_KEY: ${env:STAYBOARD_FIREBASE_PRIVATE_KEY}
+    STAYBOARD_DYNAMO_TABLE: stayboard-${opt:stage}
+    STAYBOARD_DYNAMO_ENDPOINT: ${env:STAYBOARD_DYNAMO_ENDPOINT}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:DeleteItem
+            - dynamodb:UpdateItem
+            - dynamodb:Query
+          Resource:
+            - Fn::GetAtt:
+                - StayboardDynamoTable
+                - Arn
   httpApi:
     cors:
       allowedOrigins:
@@ -315,3 +331,21 @@ functions:
       - httpApi:
           path: /api/app/{proxy+}
           method: options
+
+resources:
+  Resources:
+    StayboardDynamoTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: stayboard-${opt:stage}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: PK
+            AttributeType: S
+          - AttributeName: SK
+            AttributeType: S
+        KeySchema:
+          - AttributeName: PK
+            KeyType: HASH
+          - AttributeName: SK
+            KeyType: RANGE

@@ -1,14 +1,18 @@
 import { APIGatewayProxyEvent } from "aws-lambda";
 import moment from "moment";
 import multipart from "lambda-multipart-parser";
-import StayboardBooking from "../../models/stayboard/Booking";
-import StayboardHousekeepingTask from "../../models/stayboard/HousekeepingTask";
-import StayboardDevice from "../../models/stayboard/Device";
-import StayboardListing from "../../models/stayboard/Listing";
+import { getStayboardModels } from "../../data/stayboard";
 import { parseToken } from "../../utils/stayboard/auth";
 import { appResponse } from "../../utils/stayboard/response";
 import { uploadGuestIdPhoto } from "../../utils/stayboard/s3";
 import { sendPushNotifications } from "../../utils/stayboard/push";
+
+const {
+  Booking: StayboardBooking,
+  HousekeepingTask: StayboardHousekeepingTask,
+  Device: StayboardDevice,
+  Listing: StayboardListing,
+} = getStayboardModels();
 
 type IdPhotoPayloadItem = {
   base64: string;

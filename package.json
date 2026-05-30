@@ -6,7 +6,7 @@
   "scripts": {
     "test": "jest",
     "start": "NODE_OPTIONS=--no-experimental-require-module serverless offline --httpPort ${PORT:-3005} --stage local --region us-east-1",
-    "mongo:up": "docker rm -f tcn-mongo >/dev/null 2>&1 || true && docker run -d --name tcn-mongo -p 27017:27017 -e MONGO_INITDB_DATABASE=thecitynook -v tcn-mongo-data:/data/db mongo:7",
+    "mongo:up": "docker rm -f mongodb-local >/dev/null 2>&1 || true && docker run -d --name mongodb-local -p 27017:27017 -e MONGO_INITDB_DATABASE=thecitynook -v mongodb-local-data:/data/db mongo:7",
     "mongo:down": "docker stop tcn-mongo && docker rm tcn-mongo",
     "mongo:logs": "docker logs -f tcn-mongo",
     "deploy": "serverless deploy --stage prod --aws-profile hoistin --region us-east-1",
@@ -26,8 +26,10 @@
     "typescript": "^5.1.6"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1055.0",
     "@aws-sdk/client-s3": "^3.1052.0",
     "@aws-sdk/client-ses": "^3.741.0",
+    "@aws-sdk/lib-dynamodb": "^3.1055.0",
     "@aws-sdk/lib-storage": "^3.1052.0",
     "@types/bcryptjs": "^3.0.0",
     "@types/jsonwebtoken": "^9.0.9",

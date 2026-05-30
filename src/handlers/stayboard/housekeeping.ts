@@ -1,11 +1,15 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
 import moment from 'moment';
-import StayboardHousekeepingTask from '../../models/stayboard/HousekeepingTask';
-import StayboardDevice from '../../models/stayboard/Device';
-import StayboardUser from '../../models/stayboard/User';
+import { getStayboardModels } from '../../data/stayboard';
 import { parseToken } from '../../utils/stayboard/auth';
 import { appResponse } from '../../utils/stayboard/response';
 import { sendPushNotifications } from '../../utils/stayboard/push';
+
+const {
+  HousekeepingTask: StayboardHousekeepingTask,
+  Device: StayboardDevice,
+  User: StayboardUser,
+} = getStayboardModels();
 
 export const listTasksHandler = async (event: APIGatewayProxyEvent) => {
   const token = parseToken(event);
