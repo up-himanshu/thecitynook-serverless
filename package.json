@@ -5,10 +5,10 @@
   "main": "index.js",
   "scripts": {
     "test": "jest",
-    "mongo:up": "docker rm -f mongodb-local >/dev/null 2>&1 || true && docker run -d --name mongodb-local -p 27017:27017 -e MONGO_INITDB_DATABASE=thecitynook -v mongodb-local-data:/data/db mongo:7",
     "start": "NODE_OPTIONS=--no-experimental-require-module serverless offline --httpPort ${PORT:-3005} --stage local --region ap-south-1",
-    "mongo:down": "docker stop tcn-mongo && docker rm tcn-mongo",
-    "mongo:logs": "docker logs -f tcn-mongo",
+    "mongo:up": "docker rm -f mongodb-local >/dev/null 2>&1 || true && docker run -d --name mongodb-local -p 27017:27017 -e MONGO_INITDB_DATABASE=thecitynook -v mongodb-local-data:/data/db mongo:7",
+    "mongo:down": "docker stop mongodb-local && docker rm mongodb-local",
+    "mongo:logs": "docker logs -f mongodb-local",
     "deploy": "serverless deploy --stage prod --aws-profile hoistin --region ap-south-1",
     "remove": "serverless remove --stage prod --aws-profile hoistin --region ap-south-1"
   },
