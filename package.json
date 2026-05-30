@@ -5,12 +5,12 @@
   "main": "index.js",
   "scripts": {
     "test": "jest",
-    "start": "NODE_OPTIONS=--no-experimental-require-module serverless offline --httpPort ${PORT:-3005} --stage local --region us-east-1",
+    "start": "NODE_OPTIONS=--no-experimental-require-module serverless offline --httpPort ${PORT:-3005} --stage local --region ap-south-1",
     "mongo:up": "docker rm -f tcn-mongo >/dev/null 2>&1 || true && docker run -d --name tcn-mongo -p 27017:27017 -e MONGO_INITDB_DATABASE=thecitynook -v tcn-mongo-data:/data/db mongo:7",
     "mongo:down": "docker stop tcn-mongo && docker rm tcn-mongo",
     "mongo:logs": "docker logs -f tcn-mongo",
-    "deploy": "serverless deploy --stage prod --aws-profile hoistin --region us-east-1",
-    "remove": "serverless remove --stage prod --aws-profile hoistin --region us-east-1"
+    "deploy": "serverless deploy --stage prod --aws-profile hoistin --region ap-south-1",
+    "remove": "serverless remove --stage prod --aws-profile hoistin --region ap-south-1"
   },
   "keywords": [],
   "author": "",
