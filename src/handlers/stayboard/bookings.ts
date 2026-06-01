@@ -1,14 +1,19 @@
 import { APIGatewayProxyEvent } from "aws-lambda";
 import moment from "moment";
 import multipart from "lambda-multipart-parser";
-import StayboardBooking from "../../models/stayboard/Booking";
-import StayboardHousekeepingTask from "../../models/stayboard/HousekeepingTask";
-import StayboardDevice from "../../models/stayboard/Device";
-import StayboardListing from "../../models/stayboard/Listing";
+import { getStayboardModels } from "../../data/stayboard";
 import { parseToken } from "../../utils/stayboard/auth";
 import { appResponse } from "../../utils/stayboard/response";
 import { uploadGuestIdPhoto } from "../../utils/stayboard/s3";
 import { sendPushNotifications } from "../../utils/stayboard/push";
+
+const {
+  Booking: StayboardBooking,
+  HousekeepingTask: StayboardHousekeepingTask,
+  Device: StayboardDevice,
+  Listing: StayboardListing,
+  User: StayboardUser,
+} = getStayboardModels();
 
 type IdPhotoPayloadItem = {
   base64: string;
@@ -40,6 +45,29 @@ const shouldCreateTaskForDueDate = (dueDate: string) =>
   dueDate >= moment().format("YYYY-MM-DD");
 const calculateNights = (checkInDate: string, checkOutDate: string) =>
   Math.max(1, moment(checkOutDate).diff(moment(checkInDate), "days"));
+const notifyHousekeepingUsersForOwner = async ({
+  ownerId,
+  title,
+  body,
+}: {
+  ownerId: string;
+  title: string;
+  body: string;
+}) => {
+  const staffUsers = await StayboardUser.find({
+    ownerId,
+    role: "housekeeping",
+  }).select("_id");
+  const staffIds = staffUsers.map((user: any) => String(user._id));
+  if (!staffIds.length) return;
+
+  const staffDevices = await StayboardDevice.find({ userId: { $in: staffIds } });
+  await sendPushNotifications(
+    staffDevices.map((d: any) => d.pushToken),
+    title,
+    body,
+  );
+};
 const shiftNextDayCheckoutTaskToToday = async ({
   ownerId,
   listingId,
@@ -276,13 +304,12 @@ export const postHandler = async (event: APIGatewayProxyEvent) => {
     newCheckInDate: checkInDate,
   });
 
-  const staffDevices = await StayboardDevice.find({});
   try {
-    await sendPushNotifications(
-      staffDevices.map((d) => d.pushToken),
-      "New checkout task",
-      `${listing.name} scheduled for housekeeping`,
-    );
+    await notifyHousekeepingUsersForOwner({
+      ownerId: token.userId,
+      title: "New checkout task",
+      body: `${listing.name} scheduled for housekeeping`,
+    });
   } catch (error) {
     console.error("Unable to send housekeeping push notifications:", error);
   }
@@ -475,6 +502,19 @@ export const createHousekeepingTaskHandler = async (
   });
   if (!listing) return appResponse(404, {}, "Listing not found");
 
+  const existingTask = await StayboardHousekeepingTask.findOne({
+    bookingId: String(booking._id),
+    isActive: { $ne: false },
+  }).select("_id");
+
+  if (existingTask) {
+    return appResponse(
+      409,
+      { taskId: String(existingTask._id) },
+      "Housekeeping task already exists for this booking",
+    );
+  }
+
   const housekeepingTask = await createManualTaskForBooking({
     ownerId: token.userId,
     listing,
@@ -482,5 +522,47 @@ export const createHousekeepingTaskHandler = async (
     dueDate: dueDateStr,
   });
 
+  try {
+    await notifyHousekeepingUsersForOwner({
+      ownerId: token.userId,
+      title: "New checkout task",
+      body: `${listing.name} scheduled for housekeeping`,
+    });
+  } catch (error) {
+    console.error("Unable to send housekeeping push notifications:", error);
+  }
+
   return appResponse(201, { housekeepingTask }, "Housekeeping task created");
+};
+
+export const deleteBookingHandler = async (event: APIGatewayProxyEvent) => {
+  const token = parseToken(event);
+  if (!token) return appResponse(401, {}, "Unauthorized");
+  if (token.role !== "owner") return appResponse(403, {}, "Forbidden");
+
+  const bookingId = String(event.pathParameters?.bookingId || "").trim();
+  if (!bookingId) return appResponse(400, {}, "bookingId is required");
+
+  const booking = await StayboardBooking.findOne({
+    _id: bookingId,
+    ownerId: token.userId,
+  });
+  if (!booking) return appResponse(404, {}, "Booking not found");
+
+  await Promise.all([
+    StayboardHousekeepingTask.deleteMany({
+      bookingId: booking._id,
+      ownerId: token.userId,
+    }),
+    StayboardBooking.deleteOne({
+      _id: booking._id,
+      ownerId: token.userId,
+    }),
+  ]);
+
+  return appResponse(
+    200,
+    { bookingId: String(booking._id) },
+    "Booking and associated housekeeping tasks deleted",
+  );
 };

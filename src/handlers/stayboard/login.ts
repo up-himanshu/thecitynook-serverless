@@ -1,8 +1,10 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
 import jwt from 'jsonwebtoken';
-import StayboardUser from '../../models/stayboard/User';
+import { getStayboardModels } from '../../data/stayboard';
 import { appResponse } from '../../utils/stayboard/response';
 import { ensureDemoUsers } from '../../utils/stayboard/seed';
+
+const { User: StayboardUser } = getStayboardModels();
 
 export const handler = async (event: APIGatewayProxyEvent) => {
   try {

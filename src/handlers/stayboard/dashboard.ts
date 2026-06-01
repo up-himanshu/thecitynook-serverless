@@ -1,10 +1,17 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
 import moment from 'moment';
-import StayboardBooking from '../../models/stayboard/Booking';
-import StayboardHousekeepingTask from '../../models/stayboard/HousekeepingTask';
-import StayboardListing from '../../models/stayboard/Listing';
+import { getStayboardModels } from '../../data/stayboard';
 import { parseToken } from '../../utils/stayboard/auth';
 import { appResponse } from '../../utils/stayboard/response';
+
+const {
+  Booking: StayboardBooking,
+  HousekeepingTask: StayboardHousekeepingTask,
+  Listing: StayboardListing,
+} = getStayboardModels();
+
+const normalizeTaskStatus = (status: string) =>
+  status === 'finished' ? 'completed' : status;
 
 export const handler = async (event: APIGatewayProxyEvent) => {
   const token = parseToken(event);
@@ -25,8 +32,8 @@ export const handler = async (event: APIGatewayProxyEvent) => {
   const upcoming = bookings.filter((b) => b.checkInDate > today && b.checkInDate <= in7Days);
 
   const allowedStatuses = token.role === 'housekeeping'
-    ? ['pending', 'in_progress', 'completed']
-    : ['pending', 'in_progress', 'completed', 'skipped'];
+    ? ['pending', 'in_progress', 'completed', 'finished']
+    : ['pending', 'in_progress', 'completed', 'finished', 'skipped'];
 
   const taskRows = tasks
     .filter((t) => allowedStatuses.includes(t.status))
@@ -36,7 +43,7 @@ export const handler = async (event: APIGatewayProxyEvent) => {
       roomName: t.roomName,
       checkoutDate: t.dueDate,
       listingName: listings.find((l) => String(l._id) === String(t.listingId))?.name || 'Listing',
-      status: t.status,
+      status: normalizeTaskStatus(t.status),
       checklist: t.checklist,
     }));
 

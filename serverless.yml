@@ -22,6 +22,22 @@ provider:
     STAYBOARD_FIREBASE_PROJECT_ID: ${env:STAYBOARD_FIREBASE_PROJECT_ID}
     STAYBOARD_FIREBASE_CLIENT_EMAIL: ${env:STAYBOARD_FIREBASE_CLIENT_EMAIL}
     STAYBOARD_FIREBASE_PRIVATE_KEY: ${env:STAYBOARD_FIREBASE_PRIVATE_KEY}
+    STAYBOARD_DYNAMO_TABLE: stayboard-${opt:stage}
+    STAYBOARD_DYNAMO_ENDPOINT: ${env:STAYBOARD_DYNAMO_ENDPOINT}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:DeleteItem
+            - dynamodb:UpdateItem
+            - dynamodb:Query
+          Resource:
+            - Fn::GetAtt:
+                - StayboardDynamoTable
+                - Arn
   httpApi:
     cors:
       allowedOrigins:
@@ -195,6 +211,12 @@ functions:
       - httpApi:
           path: /api/app/staff
           method: post
+  appDeleteAccountRequest:
+    handler: src/handlers/stayboard/deleteAccount.requestDeleteHandler
+    events:
+      - httpApi:
+          path: /api/app/account/delete-request
+          method: post
   appRegisterDevice:
     handler: src/handlers/stayboard/registerDevice.handler
     events:
@@ -267,6 +289,12 @@ functions:
       - httpApi:
           path: /api/app/bookings/{bookingId}/housekeeping-tasks
           method: post
+  appBookingDelete:
+    handler: src/handlers/stayboard/bookings.deleteBookingHandler
+    events:
+      - httpApi:
+          path: /api/app/bookings/{bookingId}/delete
+          method: post
   appBookingUploadPhoto:
     handler: src/handlers/stayboard/bookings.uploadBookingPhotoHandler
     events:
@@ -303,11 +331,23 @@ functions:
       - httpApi:
           path: /api/app/housekeeping/tasks/{taskId}/skip
           method: post
+  appHousekeepingTaskDelete:
+    handler: src/handlers/stayboard/housekeeping.deleteTaskHandler
+    events:
+      - httpApi:
+          path: /api/app/housekeeping/tasks/{taskId}/delete
+          method: post
   appHousekeepingDailyReminder:
     handler: src/handlers/stayboard/housekeeping.dailyReminderHandler
     events:
       - schedule:
           rate: cron(30 2 * * ? *)
+          enabled: true
+  appVacantListingReminder:
+    handler: src/handlers/stayboard/housekeeping.vacantListingReminderHandler
+    events:
+      - schedule:
+          rate: rate(3 hours)
           enabled: true
   appPreflight:
     handler: src/handlers/preflight.handler
@@ -315,3 +355,21 @@ functions:
       - httpApi:
           path: /api/app/{proxy+}
           method: options
+
+resources:
+  Resources:
+    StayboardDynamoTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: stayboard-${opt:stage}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: PK
+            AttributeType: S
+          - AttributeName: SK
+            AttributeType: S
+        KeySchema:
+          - AttributeName: PK
+            KeyType: HASH
+          - AttributeName: SK
+            KeyType: RANGE

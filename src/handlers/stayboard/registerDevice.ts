@@ -1,7 +1,9 @@
 import { APIGatewayProxyEvent } from "aws-lambda";
-import StayboardDevice from "../../models/stayboard/Device";
+import { getStayboardModels } from "../../data/stayboard";
 import { parseToken } from "../../utils/stayboard/auth";
 import { appResponse } from "../../utils/stayboard/response";
+
+const { Device: StayboardDevice } = getStayboardModels();
 
 export const handler = async (event: APIGatewayProxyEvent) => {
   const token = parseToken(event);

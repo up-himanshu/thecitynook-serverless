@@ -1,11 +1,25 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
 import moment from 'moment';
-import StayboardHousekeepingTask from '../../models/stayboard/HousekeepingTask';
-import StayboardDevice from '../../models/stayboard/Device';
-import StayboardUser from '../../models/stayboard/User';
+import { getStayboardModels } from '../../data/stayboard';
 import { parseToken } from '../../utils/stayboard/auth';
 import { appResponse } from '../../utils/stayboard/response';
 import { sendPushNotifications } from '../../utils/stayboard/push';
+
+const {
+  HousekeepingTask: StayboardHousekeepingTask,
+  Listing: StayboardListing,
+  Booking: StayboardBooking,
+  Device: StayboardDevice,
+  User: StayboardUser,
+} = getStayboardModels();
+
+const normalizeTaskStatus = (status: string) =>
+  status === 'finished' ? 'completed' : status;
+const toDate = (value: unknown): Date | null => {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(date.getTime()) ? null : date;
+};
 
 export const listTasksHandler = async (event: APIGatewayProxyEvent) => {
   const token = parseToken(event);
@@ -15,15 +29,19 @@ export const listTasksHandler = async (event: APIGatewayProxyEvent) => {
   const dueDate = String(event.queryStringParameters?.date || moment().format('YYYY-MM-DD'));
 
   const statusFilter = token.role === 'housekeeping'
-    ? { $in: ['pending', 'in_progress', 'completed'] }
-    : { $in: ['pending', 'in_progress', 'completed', 'skipped'] };
+    ? { $in: ['pending', 'in_progress', 'completed', 'finished'] }
+    : { $in: ['pending', 'in_progress', 'completed', 'finished', 'skipped'] };
 
-  const tasks = await StayboardHousekeepingTask.find({
+  const tasksRaw = await StayboardHousekeepingTask.find({
     ownerId,
     dueDate,
     isActive: { $ne: false },
     status: statusFilter,
   }).sort({ createdAt: 1 });
+  const tasks = tasksRaw.map((task: any) => ({
+    ...task.toObject(),
+    status: normalizeTaskStatus(task.status),
+  }));
 
   return appResponse(200, { tasks, dueDate });
 };
@@ -36,15 +54,16 @@ export const startTaskHandler = async (event: APIGatewayProxyEvent) => {
 
   const task = await StayboardHousekeepingTask.findOne({ _id: taskId, isActive: { $ne: false } });
   if (!task) return appResponse(404, {}, 'Task not found');
-  if (task.status === 'completed' || task.status === 'skipped') {
+  const taskStatus = normalizeTaskStatus(task.status);
+  if (taskStatus === 'completed' || taskStatus === 'skipped') {
     return appResponse(400, {}, 'Task cannot be started from current status');
   }
 
-  if (task.status === 'in_progress' && String(task.startedById || '') !== String(token.userId)) {
+  if (taskStatus === 'in_progress' && String(task.startedById || '') !== String(token.userId)) {
     return appResponse(409, {}, 'Task already started by another user');
   }
 
-  if (task.status === 'pending') {
+  if (taskStatus === 'pending') {
     task.status = 'in_progress';
     task.taskStartedAt = new Date();
     task.startedById = token.userId;
@@ -55,7 +74,7 @@ export const startTaskHandler = async (event: APIGatewayProxyEvent) => {
         StayboardUser.findById(token.userId).select('displayName fullName'),
         StayboardUser.find({
           role: 'owner',
-          $or: [{ _id: task.ownerId }, { ownerId: task.ownerId }],
+          ownerId: task.ownerId,
         }).select('_id'),
       ]);
       const staffName = staffUser?.displayName || staffUser?.fullName || 'A staff member';
@@ -96,18 +115,19 @@ export const submitTaskHandler = async (event: APIGatewayProxyEvent) => {
   const existingTask = await StayboardHousekeepingTask.findOne({ _id: taskId, isActive: { $ne: false } });
   if (!existingTask) return appResponse(404, {}, 'Task not found');
 
-  if (existingTask.status === 'skipped') {
+  const existingTaskStatus = normalizeTaskStatus(existingTask.status);
+  if (existingTaskStatus === 'skipped') {
     return appResponse(400, {}, 'Skipped task cannot be submitted');
   }
-  if (existingTask.status === 'completed') {
+  if (existingTaskStatus === 'completed') {
     return appResponse(400, {}, 'Task already completed');
   }
-  if (existingTask.status === 'in_progress' && String(existingTask.startedById || '') !== String(token.userId)) {
+  if (existingTaskStatus === 'in_progress' && String(existingTask.startedById || '') !== String(token.userId)) {
     return appResponse(409, {}, 'Task is in progress by another user');
   }
 
   const now = new Date();
-  const startedAt = existingTask.taskStartedAt || now;
+  const startedAt = toDate(existingTask.taskStartedAt) || now;
   const durationMinutes = Math.max(1, Math.round((now.getTime() - startedAt.getTime()) / 60000));
 
   const task = await StayboardHousekeepingTask.findOneAndUpdate(
@@ -130,7 +150,7 @@ export const submitTaskHandler = async (event: APIGatewayProxyEvent) => {
       StayboardUser.findById(token.userId).select('displayName fullName'),
       StayboardUser.find({
         role: 'owner',
-        $or: [{ _id: task.ownerId }, { ownerId: task.ownerId }],
+        ownerId: task.ownerId,
       }).select('_id'),
     ]);
     const staffName = staffUser?.displayName || staffUser?.fullName || 'A staff member';
@@ -167,6 +187,32 @@ export const skipTaskHandler = async (event: APIGatewayProxyEvent) => {
   return appResponse(200, { task }, 'Task skipped');
 };
 
+export const deleteTaskHandler = async (event: APIGatewayProxyEvent) => {
+  const token = parseToken(event);
+  if (!token) return appResponse(401, {}, 'Unauthorized');
+  if (token.role !== 'owner') return appResponse(403, {}, 'Forbidden');
+
+  const taskId = event.pathParameters?.taskId;
+  if (!taskId) return appResponse(400, {}, 'taskId is required');
+
+  const task = await StayboardHousekeepingTask.findOneAndUpdate(
+    {
+      _id: taskId,
+      ownerId: token.userId,
+      isActive: { $ne: false },
+    },
+    {
+      isActive: false,
+      status: 'skipped',
+    },
+    { new: true },
+  );
+
+  if (!task) return appResponse(404, {}, 'Task not found');
+
+  return appResponse(200, { task }, 'Task deleted');
+};
+
 export const dailyReminderHandler = async () => {
   const dueDate = moment.utc().format('YYYY-MM-DD');
 
@@ -194,4 +240,70 @@ export const dailyReminderHandler = async () => {
   }
 
   return appResponse(200, { dueDate }, 'Daily housekeeping reminders processed');
+};
+
+export const vacantListingReminderHandler = async () => {
+  const now = moment.utcOffset(330);
+  const today = now.format('YYYY-MM-DD');
+  const currentTime = now.format('HH:mm');
+
+  const listings = await StayboardListing.find({ isActive: { $ne: false } }).select(
+    '_id ownerId name checkInTime',
+  );
+
+  if (!listings.length) {
+    return appResponse(200, { date: today, remindersSent: 0 }, 'Vacant listing reminders processed');
+  }
+
+  const ownerIds = [...new Set(listings.map((listing: any) => String(listing.ownerId || '')).filter(Boolean))];
+
+  let remindersSent = 0;
+  for (const ownerId of ownerIds) {
+    const ownerListings = listings.filter((listing: any) => String(listing.ownerId) === ownerId);
+    if (!ownerListings.length) continue;
+
+    const checkInWindowListings = ownerListings.filter((listing: any) => {
+      const checkInTime = String(listing.checkInTime || '13:00');
+      return currentTime >= checkInTime;
+    });
+    if (!checkInWindowListings.length) continue;
+
+    const occupiedBookingRows = await StayboardBooking.find({
+      ownerId,
+      checkInDate: { $lte: today },
+      checkOutDate: { $gt: today },
+    }).select('listingId');
+
+    const occupiedListingIds = new Set(
+      occupiedBookingRows.map((booking: any) => String(booking.listingId)),
+    );
+
+    const vacantListings = checkInWindowListings.filter(
+      (listing: any) => !occupiedListingIds.has(String(listing._id)),
+    );
+    if (!vacantListings.length) continue;
+
+    const ownerUsers = await StayboardUser.find({ role: 'owner', ownerId }).select('_id');
+    const ownerUserIds = ownerUsers.map((owner: any) => String(owner._id));
+    if (!ownerUserIds.length) continue;
+
+    const ownerDevices = await StayboardDevice.find({ userId: { $in: ownerUserIds } }).select('pushToken');
+    if (!ownerDevices.length) continue;
+
+    const listingCount = vacantListings.length;
+    await sendPushNotifications(
+      ownerDevices.map((device: any) => device.pushToken),
+      'Vacant property reminder',
+      listingCount === 1
+        ? 'A listing is still vacant after check-in time. If a booking was received, please add booking details.'
+        : `${listingCount} listings are still vacant after check-in time. If bookings were received, please add booking details.`,
+    );
+    remindersSent += 1;
+  }
+
+  return appResponse(
+    200,
+    { date: today, time: currentTime, remindersSent },
+    'Vacant listing reminders processed',
+  );
 };

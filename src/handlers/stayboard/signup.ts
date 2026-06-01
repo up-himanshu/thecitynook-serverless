@@ -1,7 +1,9 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
 import jwt from 'jsonwebtoken';
-import StayboardUser from '../../models/stayboard/User';
+import { getStayboardModels } from '../../data/stayboard';
 import { appResponse } from '../../utils/stayboard/response';
+
+const { User: StayboardUser } = getStayboardModels();
 
 const normalizeEmail = (email: any): string | null => {
   const value = String(email ?? '').trim().toLowerCase();
