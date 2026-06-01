@@ -211,6 +211,12 @@ functions:
       - httpApi:
           path: /api/app/staff
           method: post
+  appDeleteAccountRequest:
+    handler: src/handlers/stayboard/deleteAccount.requestDeleteHandler
+    events:
+      - httpApi:
+          path: /api/app/account/delete-request
+          method: post
   appRegisterDevice:
     handler: src/handlers/stayboard/registerDevice.handler
     events:
@@ -336,6 +342,12 @@ functions:
     events:
       - schedule:
           rate: cron(30 2 * * ? *)
+          enabled: true
+  appVacantListingReminder:
+    handler: src/handlers/stayboard/housekeeping.vacantListingReminderHandler
+    events:
+      - schedule:
+          rate: rate(3 hours)
           enabled: true
   appPreflight:
     handler: src/handlers/preflight.handler

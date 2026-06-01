@@ -12,6 +12,7 @@ const {
   HousekeepingTask: StayboardHousekeepingTask,
   Device: StayboardDevice,
   Listing: StayboardListing,
+  User: StayboardUser,
 } = getStayboardModels();
 
 type IdPhotoPayloadItem = {
@@ -44,6 +45,29 @@ const shouldCreateTaskForDueDate = (dueDate: string) =>
   dueDate >= moment().format("YYYY-MM-DD");
 const calculateNights = (checkInDate: string, checkOutDate: string) =>
   Math.max(1, moment(checkOutDate).diff(moment(checkInDate), "days"));
+const notifyHousekeepingUsersForOwner = async ({
+  ownerId,
+  title,
+  body,
+}: {
+  ownerId: string;
+  title: string;
+  body: string;
+}) => {
+  const staffUsers = await StayboardUser.find({
+    ownerId,
+    role: "housekeeping",
+  }).select("_id");
+  const staffIds = staffUsers.map((user: any) => String(user._id));
+  if (!staffIds.length) return;
+
+  const staffDevices = await StayboardDevice.find({ userId: { $in: staffIds } });
+  await sendPushNotifications(
+    staffDevices.map((d: any) => d.pushToken),
+    title,
+    body,
+  );
+};
 const shiftNextDayCheckoutTaskToToday = async ({
   ownerId,
   listingId,
@@ -280,13 +304,12 @@ export const postHandler = async (event: APIGatewayProxyEvent) => {
     newCheckInDate: checkInDate,
   });
 
-  const staffDevices = await StayboardDevice.find({});
   try {
-    await sendPushNotifications(
-      staffDevices.map((d) => d.pushToken),
-      "New checkout task",
-      `${listing.name} scheduled for housekeeping`,
-    );
+    await notifyHousekeepingUsersForOwner({
+      ownerId: token.userId,
+      title: "New checkout task",
+      body: `${listing.name} scheduled for housekeeping`,
+    });
   } catch (error) {
     console.error("Unable to send housekeeping push notifications:", error);
   }
@@ -498,6 +521,16 @@ export const createHousekeepingTaskHandler = async (
     bookingId: String(booking._id),
     dueDate: dueDateStr,
   });
+
+  try {
+    await notifyHousekeepingUsersForOwner({
+      ownerId: token.userId,
+      title: "New checkout task",
+      body: `${listing.name} scheduled for housekeeping`,
+    });
+  } catch (error) {
+    console.error("Unable to send housekeeping push notifications:", error);
+  }
 
   return appResponse(201, { housekeepingTask }, "Housekeeping task created");
 };

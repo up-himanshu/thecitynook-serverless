@@ -7,6 +7,8 @@ import { sendPushNotifications } from '../../utils/stayboard/push';
 
 const {
   HousekeepingTask: StayboardHousekeepingTask,
+  Listing: StayboardListing,
+  Booking: StayboardBooking,
   Device: StayboardDevice,
   User: StayboardUser,
 } = getStayboardModels();
@@ -72,7 +74,7 @@ export const startTaskHandler = async (event: APIGatewayProxyEvent) => {
         StayboardUser.findById(token.userId).select('displayName fullName'),
         StayboardUser.find({
           role: 'owner',
-          $or: [{ _id: task.ownerId }, { ownerId: task.ownerId }],
+          ownerId: task.ownerId,
         }).select('_id'),
       ]);
       const staffName = staffUser?.displayName || staffUser?.fullName || 'A staff member';
@@ -148,7 +150,7 @@ export const submitTaskHandler = async (event: APIGatewayProxyEvent) => {
       StayboardUser.findById(token.userId).select('displayName fullName'),
       StayboardUser.find({
         role: 'owner',
-        $or: [{ _id: task.ownerId }, { ownerId: task.ownerId }],
+        ownerId: task.ownerId,
       }).select('_id'),
     ]);
     const staffName = staffUser?.displayName || staffUser?.fullName || 'A staff member';
@@ -238,4 +240,70 @@ export const dailyReminderHandler = async () => {
   }
 
   return appResponse(200, { dueDate }, 'Daily housekeeping reminders processed');
+};
+
+export const vacantListingReminderHandler = async () => {
+  const now = moment.utcOffset(330);
+  const today = now.format('YYYY-MM-DD');
+  const currentTime = now.format('HH:mm');
+
+  const listings = await StayboardListing.find({ isActive: { $ne: false } }).select(
+    '_id ownerId name checkInTime',
+  );
+
+  if (!listings.length) {
+    return appResponse(200, { date: today, remindersSent: 0 }, 'Vacant listing reminders processed');
+  }
+
+  const ownerIds = [...new Set(listings.map((listing: any) => String(listing.ownerId || '')).filter(Boolean))];
+
+  let remindersSent = 0;
+  for (const ownerId of ownerIds) {
+    const ownerListings = listings.filter((listing: any) => String(listing.ownerId) === ownerId);
+    if (!ownerListings.length) continue;
+
+    const checkInWindowListings = ownerListings.filter((listing: any) => {
+      const checkInTime = String(listing.checkInTime || '13:00');
+      return currentTime >= checkInTime;
+    });
+    if (!checkInWindowListings.length) continue;
+
+    const occupiedBookingRows = await StayboardBooking.find({
+      ownerId,
+      checkInDate: { $lte: today },
+      checkOutDate: { $gt: today },
+    }).select('listingId');
+
+    const occupiedListingIds = new Set(
+      occupiedBookingRows.map((booking: any) => String(booking.listingId)),
+    );
+
+    const vacantListings = checkInWindowListings.filter(
+      (listing: any) => !occupiedListingIds.has(String(listing._id)),
+    );
+    if (!vacantListings.length) continue;
+
+    const ownerUsers = await StayboardUser.find({ role: 'owner', ownerId }).select('_id');
+    const ownerUserIds = ownerUsers.map((owner: any) => String(owner._id));
+    if (!ownerUserIds.length) continue;
+
+    const ownerDevices = await StayboardDevice.find({ userId: { $in: ownerUserIds } }).select('pushToken');
+    if (!ownerDevices.length) continue;
+
+    const listingCount = vacantListings.length;
+    await sendPushNotifications(
+      ownerDevices.map((device: any) => device.pushToken),
+      'Vacant property reminder',
+      listingCount === 1
+        ? 'A listing is still vacant after check-in time. If a booking was received, please add booking details.'
+        : `${listingCount} listings are still vacant after check-in time. If bookings were received, please add booking details.`,
+    );
+    remindersSent += 1;
+  }
+
+  return appResponse(
+    200,
+    { date: today, time: currentTime, remindersSent },
+    'Vacant listing reminders processed',
+  );
 };
