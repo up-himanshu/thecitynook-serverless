@@ -10,6 +10,9 @@ const {
   Listing: StayboardListing,
 } = getStayboardModels();
 
+const normalizeTaskStatus = (status: string) =>
+  status === 'finished' ? 'completed' : status;
+
 export const handler = async (event: APIGatewayProxyEvent) => {
   const token = parseToken(event);
   if (!token) return appResponse(401, {}, 'Unauthorized');
@@ -29,8 +32,8 @@ export const handler = async (event: APIGatewayProxyEvent) => {
   const upcoming = bookings.filter((b) => b.checkInDate > today && b.checkInDate <= in7Days);
 
   const allowedStatuses = token.role === 'housekeeping'
-    ? ['pending', 'in_progress', 'completed']
-    : ['pending', 'in_progress', 'completed', 'skipped'];
+    ? ['pending', 'in_progress', 'completed', 'finished']
+    : ['pending', 'in_progress', 'completed', 'finished', 'skipped'];
 
   const taskRows = tasks
     .filter((t) => allowedStatuses.includes(t.status))
@@ -40,7 +43,7 @@ export const handler = async (event: APIGatewayProxyEvent) => {
       roomName: t.roomName,
       checkoutDate: t.dueDate,
       listingName: listings.find((l) => String(l._id) === String(t.listingId))?.name || 'Listing',
-      status: t.status,
+      status: normalizeTaskStatus(t.status),
       checklist: t.checklist,
     }));
 

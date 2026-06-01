@@ -479,6 +479,19 @@ export const createHousekeepingTaskHandler = async (
   });
   if (!listing) return appResponse(404, {}, "Listing not found");
 
+  const existingTask = await StayboardHousekeepingTask.findOne({
+    bookingId: String(booking._id),
+    isActive: { $ne: false },
+  }).select("_id");
+
+  if (existingTask) {
+    return appResponse(
+      409,
+      { taskId: String(existingTask._id) },
+      "Housekeeping task already exists for this booking",
+    );
+  }
+
   const housekeepingTask = await createManualTaskForBooking({
     ownerId: token.userId,
     listing,
@@ -487,4 +500,36 @@ export const createHousekeepingTaskHandler = async (
   });
 
   return appResponse(201, { housekeepingTask }, "Housekeeping task created");
+};
+
+export const deleteBookingHandler = async (event: APIGatewayProxyEvent) => {
+  const token = parseToken(event);
+  if (!token) return appResponse(401, {}, "Unauthorized");
+  if (token.role !== "owner") return appResponse(403, {}, "Forbidden");
+
+  const bookingId = String(event.pathParameters?.bookingId || "").trim();
+  if (!bookingId) return appResponse(400, {}, "bookingId is required");
+
+  const booking = await StayboardBooking.findOne({
+    _id: bookingId,
+    ownerId: token.userId,
+  });
+  if (!booking) return appResponse(404, {}, "Booking not found");
+
+  await Promise.all([
+    StayboardHousekeepingTask.deleteMany({
+      bookingId: booking._id,
+      ownerId: token.userId,
+    }),
+    StayboardBooking.deleteOne({
+      _id: booking._id,
+      ownerId: token.userId,
+    }),
+  ]);
+
+  return appResponse(
+    200,
+    { bookingId: String(booking._id) },
+    "Booking and associated housekeeping tasks deleted",
+  );
 };

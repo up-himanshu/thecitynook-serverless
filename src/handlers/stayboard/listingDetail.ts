@@ -10,6 +10,9 @@ const {
   User: StayboardUser,
 } = getStayboardModels();
 
+const normalizeTaskStatus = (status: string) =>
+  status === 'finished' ? 'completed' : status;
+
 export const handler = async (event: APIGatewayProxyEvent) => {
   const token = parseToken(event);
   if (!token) return appResponse(401, {}, 'Unauthorized');
@@ -24,7 +27,7 @@ export const handler = async (event: APIGatewayProxyEvent) => {
       listingId: id,
       ownerId,
       isActive: { $ne: false },
-      status: { $in: ['completed', 'skipped'] },
+      status: { $in: ['completed', 'finished', 'skipped'] },
     }).sort({ taskCompletedAt: -1 }).limit(30),
   ]);
 
@@ -34,7 +37,7 @@ export const handler = async (event: APIGatewayProxyEvent) => {
 
   const housekeepingSubmissions = completedTasks.map((task) => ({
     _id: task._id,
-    status: task.status,
+    status: normalizeTaskStatus(task.status),
     durationMinutes: task.durationMinutes || null,
     submittedAt: task.taskCompletedAt || null,
     submittedBy: task.completedById ? staffMap.get(String(task.completedById)) || 'Housekeeping' : 'Housekeeping',

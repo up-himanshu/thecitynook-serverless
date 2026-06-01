@@ -283,6 +283,12 @@ functions:
       - httpApi:
           path: /api/app/bookings/{bookingId}/housekeeping-tasks
           method: post
+  appBookingDelete:
+    handler: src/handlers/stayboard/bookings.deleteBookingHandler
+    events:
+      - httpApi:
+          path: /api/app/bookings/{bookingId}/delete
+          method: post
   appBookingUploadPhoto:
     handler: src/handlers/stayboard/bookings.uploadBookingPhotoHandler
     events:
@@ -318,6 +324,12 @@ functions:
     events:
       - httpApi:
           path: /api/app/housekeeping/tasks/{taskId}/skip
+          method: post
+  appHousekeepingTaskDelete:
+    handler: src/handlers/stayboard/housekeeping.deleteTaskHandler
+    events:
+      - httpApi:
+          path: /api/app/housekeeping/tasks/{taskId}/delete
           method: post
   appHousekeepingDailyReminder:
     handler: src/handlers/stayboard/housekeeping.dailyReminderHandler
