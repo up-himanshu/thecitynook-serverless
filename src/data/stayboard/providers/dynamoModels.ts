@@ -12,10 +12,10 @@ import {
 import { StayboardDataModels } from "../repositories/types";
 
 const TABLE_NAME = process.env.STAYBOARD_DYNAMO_TABLE;
-const DYNAMO_ENDPOINT = process.env.STAYBOARD_DYNAMO_ENDPOINT;
+const DYNAMO_ENDPOINT = process.env.STAYBOARD_DYNAMO_ENDPOINT?.trim();
 const DYNAMO_REGION = DYNAMO_ENDPOINT
-  ? "us-east-1"
-  : process.env.STAYBOARD_AWS_REGION || process.env.AWS_REGION || "us-east-1";
+  ? "ap-south-1"
+  : process.env.STAYBOARD_AWS_REGION || process.env.AWS_REGION || "ap-south-1";
 
 const dynamo = DynamoDBDocumentClient.from(
   new DynamoDBClient({

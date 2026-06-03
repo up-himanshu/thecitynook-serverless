@@ -13,7 +13,6 @@ provider:
     SES_REGION: ${env:SES_REGION}
     RECAPTCHA_SECRET_KEY: ${env:RECAPTCHA_SECRET_KEY}
     PORT: ${env:PORT}
-    AWS_PROFILE: ${env:AWS_PROFILE}
     NODE_ENV: ${env:NODE_ENV}
     STAYBOARD_S3_BUCKET: ${env:STAYBOARD_S3_BUCKET}
     STAYBOARD_AWS_REGION: ${env:STAYBOARD_AWS_REGION}
@@ -23,7 +22,7 @@ provider:
     STAYBOARD_FIREBASE_CLIENT_EMAIL: ${env:STAYBOARD_FIREBASE_CLIENT_EMAIL}
     STAYBOARD_FIREBASE_PRIVATE_KEY: ${env:STAYBOARD_FIREBASE_PRIVATE_KEY}
     STAYBOARD_DYNAMO_TABLE: stayboard-${opt:stage}
-    STAYBOARD_DYNAMO_ENDPOINT: ${env:STAYBOARD_DYNAMO_ENDPOINT}
+    STAYBOARD_DYNAMO_ENDPOINT: ${env:STAYBOARD_DYNAMO_ENDPOINT, ''}
   iam:
     role:
       statements:
@@ -271,6 +270,12 @@ functions:
       - httpApi:
           path: /api/app/bookings
           method: post
+  appBookingUpdate:
+    handler: src/handlers/stayboard/bookings.updateBookingHandler
+    events:
+      - httpApi:
+          path: /api/app/bookings/{bookingId}
+          method: put
   appBookingExtend:
     handler: src/handlers/stayboard/bookings.extendBookingHandler
     events:

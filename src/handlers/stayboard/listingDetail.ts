@@ -2,6 +2,7 @@ import { APIGatewayProxyEvent } from 'aws-lambda';
 import { getStayboardModels } from '../../data/stayboard';
 import { parseToken } from '../../utils/stayboard/auth';
 import { appResponse } from '../../utils/stayboard/response';
+import { withSignedGuestIdPhotoUrls } from '../../utils/stayboard/s3';
 
 const {
   Listing: StayboardListing,
@@ -43,6 +44,13 @@ export const handler = async (event: APIGatewayProxyEvent) => {
     submittedBy: task.completedById ? staffMap.get(String(task.completedById)) || 'Housekeeping' : 'Housekeeping',
   }));
 
-  const safeBookings = token.role === 'housekeeping' ? [] : bookings;
+  const safeBookings =
+    token.role === 'housekeeping'
+      ? []
+      : await Promise.all(
+          bookings.map((booking: any) =>
+            withSignedGuestIdPhotoUrls(booking.toObject()),
+          ),
+        );
   return appResponse(200, { listing, bookings: safeBookings, housekeepingSubmissions });
 };

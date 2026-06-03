@@ -4,7 +4,10 @@ import multipart from "lambda-multipart-parser";
 import { getStayboardModels } from "../../data/stayboard";
 import { parseToken } from "../../utils/stayboard/auth";
 import { appResponse } from "../../utils/stayboard/response";
-import { uploadGuestIdPhoto } from "../../utils/stayboard/s3";
+import {
+  uploadGuestIdPhoto,
+  withSignedGuestIdPhotoUrls,
+} from "../../utils/stayboard/s3";
 import { sendPushNotifications } from "../../utils/stayboard/push";
 
 const {
@@ -314,11 +317,70 @@ export const postHandler = async (event: APIGatewayProxyEvent) => {
     console.error("Unable to send housekeeping push notifications:", error);
   }
 
+  const responseBooking = await withSignedGuestIdPhotoUrls(booking.toObject());
+
   return appResponse(
     201,
-    { booking, housekeepingTask: task },
+    { booking: responseBooking, housekeepingTask: task },
     "Booking created",
   );
+};
+
+export const updateBookingHandler = async (event: APIGatewayProxyEvent) => {
+  const token = parseToken(event);
+  if (!token) return appResponse(401, {}, "Unauthorized");
+  if (token.role !== "owner") return appResponse(403, {}, "Forbidden");
+  if (!event.body) return appResponse(400, {}, "Missing request body");
+
+  const bookingId = String(event.pathParameters?.bookingId || "").trim();
+  if (!bookingId) return appResponse(400, {}, "bookingId is required");
+
+  const parsed = JSON.parse(event.body);
+  const guestName = String(parsed.guestName || "").trim();
+  const checkInDate = String(parsed.checkInDate || "").trim();
+  const checkOutDate = String(parsed.checkOutDate || "").trim();
+  const phone = String(parsed.phone || "").replace(/\D/g, "");
+  const amount = Number(parsed.amount || 0);
+
+  if (!guestName || !checkInDate || !checkOutDate) {
+    return appResponse(
+      400,
+      {},
+      "guestName, checkInDate and checkOutDate are required",
+    );
+  }
+  if (checkInDate === checkOutDate) {
+    return appResponse(
+      400,
+      {},
+      "checkInDate and checkOutDate cannot be the same",
+    );
+  }
+  if (phone && phone.length !== 10) {
+    return appResponse(400, {}, "phone must be a 10 digit number");
+  }
+  if (Number.isNaN(amount) || amount < 0) {
+    return appResponse(400, {}, "amount must be a valid non-negative number");
+  }
+
+  const booking = await StayboardBooking.findOne({
+    _id: bookingId,
+    ownerId: token.userId,
+  });
+  if (!booking) return appResponse(404, {}, "Booking not found");
+
+  booking.guestName = guestName;
+  booking.phone = phone || undefined;
+  booking.checkInDate = checkInDate;
+  booking.checkOutDate = checkOutDate;
+  booking.nights = calculateNights(checkInDate, checkOutDate);
+  booking.amount = amount;
+
+  await booking.save();
+
+  const responseBooking = await withSignedGuestIdPhotoUrls(booking.toObject());
+
+  return appResponse(200, { booking: responseBooking }, "Booking updated");
 };
 
 export const uploadBookingPhotoHandler = async (
@@ -365,9 +427,14 @@ export const uploadBookingPhotoHandler = async (
   booking.idPhotoUrl = nextUrls[0];
   await booking.save();
 
+  const signedBooking = await withSignedGuestIdPhotoUrls(booking.toObject());
+
   return appResponse(
     201,
-    { photoUrl: url, idPhotoUrls: nextUrls },
+    {
+      photoUrl: signedBooking.idPhotoUrl,
+      idPhotoUrls: signedBooking.idPhotoUrls,
+    },
     "Photo uploaded",
   );
 };

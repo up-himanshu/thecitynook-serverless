@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { GetObjectCommand, S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 const client = new S3Client({
   region: process.env.STAYBOARD_AWS_REGION || "ap-south-1",
@@ -48,4 +48,71 @@ export const uploadGuestIdPhoto = async (
     }),
   );
   return `https://${bucket}.s3.${process.env.STAYBOARD_AWS_REGION || "ap-south-1"}.amazonaws.com/${key}`;
+};
+
+const getBucketAndKeyFromUrl = (value: string) => {
+  try {
+    const parsed = new URL(value);
+    const hostParts = parsed.hostname.split(".");
+    const bucket = hostParts[0];
+    const key = decodeURIComponent(parsed.pathname.replace(/^\/+/, ""));
+    if (!bucket || !key) return null;
+    return { bucket, key };
+  } catch {
+    return null;
+  }
+};
+
+export const getGuestIdPhotoSignedUrl = async (
+  sourceUrl: string,
+  expiresIn = 60 * 60,
+) => {
+  const location = getBucketAndKeyFromUrl(sourceUrl);
+  if (!location) return sourceUrl;
+
+  let getSignedUrlFn: any;
+  try {
+    getSignedUrlFn =
+      // eslint-disable-next-line global-require, @typescript-eslint/no-var-requires
+      require("@aws-sdk/s3-request-presigner").getSignedUrl;
+  } catch (error) {
+    console.warn(
+      "S3 request presigner unavailable, returning raw guest ID photo URL:",
+      error,
+    );
+    return sourceUrl;
+  }
+
+  return getSignedUrlFn(
+    client,
+    new GetObjectCommand({
+      Bucket: location.bucket,
+      Key: location.key,
+    }),
+    { expiresIn },
+  );
+};
+
+export const withSignedGuestIdPhotoUrls = async <T extends {
+  idPhotoUrl?: string;
+  idPhotoUrls?: string[];
+}>(booking: T) => {
+  const rawUrls =
+    booking.idPhotoUrls?.length
+      ? booking.idPhotoUrls
+      : booking.idPhotoUrl
+        ? [booking.idPhotoUrl]
+        : [];
+
+  if (!rawUrls.length) return booking;
+
+  const signedUrls = await Promise.all(
+    rawUrls.map((url) => getGuestIdPhotoSignedUrl(url)),
+  );
+
+  return {
+    ...booking,
+    idPhotoUrl: signedUrls[0],
+    idPhotoUrls: signedUrls,
+  };
 };
