@@ -243,7 +243,7 @@ export const dailyReminderHandler = async () => {
 };
 
 export const vacantListingReminderHandler = async () => {
-  const now = moment.utcOffset(330);
+  const now = moment().utcOffset(330);
   const today = now.format('YYYY-MM-DD');
   const currentTime = now.format('HH:mm');
 
