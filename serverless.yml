@@ -240,6 +240,12 @@ functions:
       - httpApi:
           path: /api/app/listings
           method: post
+  appListingUpdate:
+    handler: src/handlers/stayboard/listings.updateHandler
+    events:
+      - httpApi:
+          path: /api/app/listings/{id}
+          method: put
   appListingChecklistUpdate:
     handler: src/handlers/stayboard/listings.updateChecklistHandler
     events:

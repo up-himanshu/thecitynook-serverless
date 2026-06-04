@@ -26,7 +26,7 @@ export const getHandler = async (event: APIGatewayProxyEvent) => {
   const today = moment().format("YYYY-MM-DD");
   const [listings, bookings] = await Promise.all([
     StayboardListing.find({ ownerId, isActive: { $ne: false } }),
-    StayboardBooking.find({ ownerId, checkOutDate: { $gte: today } }).sort({ checkInDate: 1 }),
+    StayboardBooking.find({ ownerId, checkOutDate: { $gte: today } }).sort({ checkInDate: -1 }),
   ]);
 
   const bookingsByListing = new Map<string, any[]>();
@@ -71,6 +71,51 @@ export const postHandler = async (event: APIGatewayProxyEvent) => {
     checklist: defaultChecklist,
   });
   return appResponse(201, { listing }, "Listing created");
+};
+
+export const updateHandler = async (event: APIGatewayProxyEvent) => {
+  const token = parseToken(event);
+  if (!token) return appResponse(401, {}, "Unauthorized");
+  if (token.role !== "owner") return appResponse(403, {}, "Forbidden");
+  if (!event.body) return appResponse(400, {}, "Missing request body");
+
+  const listingId = event.pathParameters?.id;
+  if (!listingId) return appResponse(400, {}, "listingId is required");
+
+  const { name, capacity, checkInTime, checkOutTime } = JSON.parse(event.body);
+  const listing = await StayboardListing.findOne({
+    _id: listingId,
+    ownerId: token.userId,
+    isActive: { $ne: false },
+  });
+  if (!listing) return appResponse(404, {}, "Listing not found");
+
+  const safeName = String(name ?? listing.name ?? "").trim();
+  const parsedCapacity =
+    capacity !== undefined && capacity !== null
+      ? Number(capacity)
+      : Number(listing.capacity);
+  const safeCheckInTime = String(checkInTime ?? listing.checkInTime ?? "13:00").trim();
+  const safeCheckOutTime = String(checkOutTime ?? listing.checkOutTime ?? "10:00").trim();
+
+  if (!safeName) return appResponse(400, {}, "name is required");
+  if (Number.isNaN(parsedCapacity) || parsedCapacity <= 0) {
+    return appResponse(400, {}, "capacity must be a positive number");
+  }
+  if (!isValidTime(safeCheckInTime) || !isValidTime(safeCheckOutTime)) {
+    return appResponse(400, {}, "checkInTime and checkOutTime must be in HH:mm format");
+  }
+  if (!(safeCheckInTime > safeCheckOutTime)) {
+    return appResponse(400, {}, "checkInTime must be greater than checkOutTime");
+  }
+
+  listing.name = safeName;
+  listing.capacity = parsedCapacity;
+  listing.checkInTime = safeCheckInTime;
+  listing.checkOutTime = safeCheckOutTime;
+  await listing.save();
+
+  return appResponse(200, { listing }, "Listing updated");
 };
 
 export const updateChecklistHandler = async (event: APIGatewayProxyEvent) => {

@@ -37,7 +37,7 @@ export const listTasksHandler = async (event: APIGatewayProxyEvent) => {
     dueDate,
     isActive: { $ne: false },
     status: statusFilter,
-  }).sort({ createdAt: 1 });
+  }).sort({ createdAt: -1 });
   const tasks = tasksRaw.map((task: any) => ({
     ...task.toObject(),
     status: normalizeTaskStatus(task.status),

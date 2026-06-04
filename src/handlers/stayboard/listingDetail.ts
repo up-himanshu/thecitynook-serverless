@@ -23,7 +23,7 @@ export const handler = async (event: APIGatewayProxyEvent) => {
   if (!listing) return appResponse(404, {}, 'Listing not found');
 
   const [bookings, completedTasks] = await Promise.all([
-    StayboardBooking.find({ listingId: id, ownerId }).sort({ checkInDate: 1 }),
+    StayboardBooking.find({ listingId: id, ownerId }).sort({ checkInDate: -1 }),
     StayboardHousekeepingTask.find({
       listingId: id,
       ownerId,
