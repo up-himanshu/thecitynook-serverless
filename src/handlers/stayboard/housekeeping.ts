@@ -1,9 +1,9 @@
-import { APIGatewayProxyEvent } from 'aws-lambda';
-import moment from 'moment';
-import { getStayboardModels } from '../../data/stayboard';
-import { parseToken } from '../../utils/stayboard/auth';
-import { appResponse } from '../../utils/stayboard/response';
-import { sendPushNotifications } from '../../utils/stayboard/push';
+import { APIGatewayProxyEvent } from "aws-lambda";
+import moment from "moment";
+import { getStayboardModels } from "../../data/stayboard";
+import { parseToken } from "../../utils/stayboard/auth";
+import { appResponse } from "../../utils/stayboard/response";
+import { sendPushNotifications } from "../../utils/stayboard/push";
 
 const {
   HousekeepingTask: StayboardHousekeepingTask,
@@ -14,7 +14,7 @@ const {
 } = getStayboardModels();
 
 const normalizeTaskStatus = (status: string) =>
-  status === 'finished' ? 'completed' : status;
+  status === "finished" ? "completed" : status;
 const toDate = (value: unknown): Date | null => {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(String(value));
@@ -23,14 +23,17 @@ const toDate = (value: unknown): Date | null => {
 
 export const listTasksHandler = async (event: APIGatewayProxyEvent) => {
   const token = parseToken(event);
-  if (!token) return appResponse(401, {}, 'Unauthorized');
+  if (!token) return appResponse(401, {}, "Unauthorized");
 
-  const ownerId = token.role === 'owner' ? token.userId : token.ownerId;
-  const dueDate = String(event.queryStringParameters?.date || moment().format('YYYY-MM-DD'));
+  const ownerId = token.role === "owner" ? token.userId : token.ownerId;
+  const dueDate = String(
+    event.queryStringParameters?.date || moment().format("YYYY-MM-DD"),
+  );
 
-  const statusFilter = token.role === 'housekeeping'
-    ? { $in: ['pending', 'in_progress', 'completed', 'finished'] }
-    : { $in: ['pending', 'in_progress', 'completed', 'finished', 'skipped'] };
+  const statusFilter =
+    token.role === "housekeeping"
+      ? { $in: ["pending", "in_progress", "completed", "finished"] }
+      : { $in: ["pending", "in_progress", "completed", "finished", "skipped"] };
 
   const tasksRaw = await StayboardHousekeepingTask.find({
     ownerId,
@@ -48,94 +51,112 @@ export const listTasksHandler = async (event: APIGatewayProxyEvent) => {
 
 export const startTaskHandler = async (event: APIGatewayProxyEvent) => {
   const token = parseToken(event);
-  if (!token) return appResponse(401, {}, 'Unauthorized');
+  if (!token) return appResponse(401, {}, "Unauthorized");
   const taskId = event.pathParameters?.taskId;
-  if (!taskId) return appResponse(400, {}, 'taskId is required');
+  if (!taskId) return appResponse(400, {}, "taskId is required");
 
-  const task = await StayboardHousekeepingTask.findOne({ _id: taskId, isActive: { $ne: false } });
-  if (!task) return appResponse(404, {}, 'Task not found');
+  const task = await StayboardHousekeepingTask.findOne({
+    _id: taskId,
+    isActive: { $ne: false },
+  });
+  if (!task) return appResponse(404, {}, "Task not found");
   const taskStatus = normalizeTaskStatus(task.status);
-  if (taskStatus === 'completed' || taskStatus === 'skipped') {
-    return appResponse(400, {}, 'Task cannot be started from current status');
+  if (taskStatus === "completed" || taskStatus === "skipped") {
+    return appResponse(400, {}, "Task cannot be started from current status");
   }
 
-  if (taskStatus === 'in_progress' && String(task.startedById || '') !== String(token.userId)) {
-    return appResponse(409, {}, 'Task already started by another user');
+  if (
+    taskStatus === "in_progress" &&
+    String(task.startedById || "") !== String(token.userId)
+  ) {
+    return appResponse(409, {}, "Task already started by another user");
   }
 
-  if (taskStatus === 'pending') {
-    task.status = 'in_progress';
+  if (taskStatus === "pending") {
+    task.status = "in_progress";
     task.taskStartedAt = new Date();
     task.startedById = token.userId;
     await task.save();
 
     try {
       const [staffUser, ownerUsers] = await Promise.all([
-        StayboardUser.findById(token.userId).select('displayName fullName'),
+        StayboardUser.findById(token.userId).select("displayName fullName"),
         StayboardUser.find({
-          role: 'owner',
+          role: "owner",
           ownerId: task.ownerId,
-        }).select('_id'),
+        }).select("_id"),
       ]);
-      const staffName = staffUser?.displayName || staffUser?.fullName || 'A staff member';
+      const staffName =
+        staffUser?.displayName || staffUser?.fullName || "A staff member";
       const ownerIds = ownerUsers.map((owner) => String(owner._id));
       if (ownerIds.length) {
-        const ownerDevices = await StayboardDevice.find({ userId: { $in: ownerIds } });
+        const ownerDevices = await StayboardDevice.find({
+          userId: { $in: ownerIds },
+        });
         await sendPushNotifications(
           ownerDevices.map((d) => d.pushToken),
-          'Housekeeping started',
+          "Housekeeping started",
           `${staffName} has started housekeeping on property ${task.roomName}`,
         );
       }
     } catch (error) {
-      console.error('Unable to send owner start push notifications:', error);
+      console.error("Unable to send owner start push notifications:", error);
     }
   }
 
-  return appResponse(200, { task }, 'Task started');
+  return appResponse(200, { task }, "Task started");
 };
 
 export const submitTaskHandler = async (event: APIGatewayProxyEvent) => {
   const token = parseToken(event);
-  if (!token) return appResponse(401, {}, 'Unauthorized');
-  if (!event.body) return appResponse(400, {}, 'Missing request body');
+  if (!token) return appResponse(401, {}, "Unauthorized");
+  if (!event.body) return appResponse(400, {}, "Missing request body");
 
   const parsedBody = JSON.parse(event.body);
   const taskId = event.pathParameters?.taskId || parsedBody.taskId;
-  if (!taskId) return appResponse(400, {}, 'taskId is required');
+  if (!taskId) return appResponse(400, {}, "taskId is required");
 
   const { checklist, remarks } = parsedBody;
   if (!Array.isArray(checklist) || !checklist.length) {
-    return appResponse(400, {}, 'Checklist is required');
+    return appResponse(400, {}, "Checklist is required");
   }
-  if (checklist.some((x) => x.answer !== 'yes' && x.answer !== 'no')) {
-    return appResponse(400, {}, 'All checklist items must be answered yes/no');
+  if (checklist.some((x) => x.answer !== "yes" && x.answer !== "no")) {
+    return appResponse(400, {}, "All checklist items must be answered yes/no");
   }
 
-  const existingTask = await StayboardHousekeepingTask.findOne({ _id: taskId, isActive: { $ne: false } });
-  if (!existingTask) return appResponse(404, {}, 'Task not found');
+  const existingTask = await StayboardHousekeepingTask.findOne({
+    _id: taskId,
+    isActive: { $ne: false },
+  });
+  if (!existingTask) return appResponse(404, {}, "Task not found");
 
   const existingTaskStatus = normalizeTaskStatus(existingTask.status);
-  if (existingTaskStatus === 'skipped') {
-    return appResponse(400, {}, 'Skipped task cannot be submitted');
+  if (existingTaskStatus === "skipped") {
+    return appResponse(400, {}, "Skipped task cannot be submitted");
   }
-  if (existingTaskStatus === 'completed') {
-    return appResponse(400, {}, 'Task already completed');
+  if (existingTaskStatus === "completed") {
+    return appResponse(400, {}, "Task already completed");
   }
-  if (existingTaskStatus === 'in_progress' && String(existingTask.startedById || '') !== String(token.userId)) {
-    return appResponse(409, {}, 'Task is in progress by another user');
+  if (
+    existingTaskStatus === "in_progress" &&
+    String(existingTask.startedById || "") !== String(token.userId)
+  ) {
+    return appResponse(409, {}, "Task is in progress by another user");
   }
 
   const now = new Date();
   const startedAt = toDate(existingTask.taskStartedAt) || now;
-  const durationMinutes = Math.max(1, Math.round((now.getTime() - startedAt.getTime()) / 60000));
+  const durationMinutes = Math.max(
+    1,
+    Math.round((now.getTime() - startedAt.getTime()) / 60000),
+  );
 
   const task = await StayboardHousekeepingTask.findOneAndUpdate(
     { _id: taskId, isActive: { $ne: false } },
     {
       checklist,
       remarks,
-      status: 'completed',
+      status: "completed",
       completedById: token.userId,
       taskCompletedAt: now,
       durationMinutes,
@@ -143,57 +164,58 @@ export const submitTaskHandler = async (event: APIGatewayProxyEvent) => {
     { new: true },
   );
 
-  if (!task) return appResponse(404, {}, 'Task not found');
+  if (!task) return appResponse(404, {}, "Task not found");
 
   try {
     const [staffUser, ownerUsers] = await Promise.all([
-      StayboardUser.findById(token.userId).select('displayName fullName'),
+      StayboardUser.findById(token.userId).select("displayName fullName"),
       StayboardUser.find({
-        role: 'owner',
+        role: "owner",
         ownerId: task.ownerId,
-      }).select('_id'),
+      }).select("_id"),
     ]);
-    const staffName = staffUser?.displayName || staffUser?.fullName || 'A staff member';
+    const staffName =
+      staffUser?.displayName || staffUser?.fullName || "A staff member";
     const ownerIds = ownerUsers.map((owner) => String(owner._id));
     const ownerDevices = ownerIds.length
       ? await StayboardDevice.find({ userId: { $in: ownerIds } })
       : [];
     await sendPushNotifications(
       ownerDevices.map((d) => d.pushToken),
-      'Housekeeping completed',
+      "Housekeeping completed",
       `${staffName} has completed housekeeping on property ${task.roomName}`,
     );
   } catch (error) {
-    console.error('Unable to send owner completion push notifications:', error);
+    console.error("Unable to send owner completion push notifications:", error);
   }
 
-  return appResponse(200, { task }, 'Task completed');
+  return appResponse(200, { task }, "Task completed");
 };
 
 export const skipTaskHandler = async (event: APIGatewayProxyEvent) => {
   const token = parseToken(event);
-  if (!token) return appResponse(401, {}, 'Unauthorized');
-  if (token.role !== 'owner') return appResponse(403, {}, 'Forbidden');
+  if (!token) return appResponse(401, {}, "Unauthorized");
+  if (token.role !== "owner") return appResponse(403, {}, "Forbidden");
   const taskId = event.pathParameters?.taskId;
-  if (!taskId) return appResponse(400, {}, 'taskId is required');
+  if (!taskId) return appResponse(400, {}, "taskId is required");
 
   const task = await StayboardHousekeepingTask.findOneAndUpdate(
     { _id: taskId, isActive: { $ne: false } },
-    { status: 'skipped' },
+    { status: "skipped" },
     { new: true },
   );
-  if (!task) return appResponse(404, {}, 'Task not found');
+  if (!task) return appResponse(404, {}, "Task not found");
 
-  return appResponse(200, { task }, 'Task skipped');
+  return appResponse(200, { task }, "Task skipped");
 };
 
 export const deleteTaskHandler = async (event: APIGatewayProxyEvent) => {
   const token = parseToken(event);
-  if (!token) return appResponse(401, {}, 'Unauthorized');
-  if (token.role !== 'owner') return appResponse(403, {}, 'Forbidden');
+  if (!token) return appResponse(401, {}, "Unauthorized");
+  if (token.role !== "owner") return appResponse(403, {}, "Forbidden");
 
   const taskId = event.pathParameters?.taskId;
-  if (!taskId) return appResponse(400, {}, 'taskId is required');
+  if (!taskId) return appResponse(400, {}, "taskId is required");
 
   const task = await StayboardHousekeepingTask.findOneAndUpdate(
     {
@@ -203,67 +225,87 @@ export const deleteTaskHandler = async (event: APIGatewayProxyEvent) => {
     },
     {
       isActive: false,
-      status: 'skipped',
+      status: "skipped",
     },
     { new: true },
   );
 
-  if (!task) return appResponse(404, {}, 'Task not found');
+  if (!task) return appResponse(404, {}, "Task not found");
 
-  return appResponse(200, { task }, 'Task deleted');
+  return appResponse(200, { task }, "Task deleted");
 };
 
 export const dailyReminderHandler = async () => {
-  const dueDate = moment.utc().format('YYYY-MM-DD');
+  const dueDate = moment.utc().format("YYYY-MM-DD");
 
-  const staffUsers = await StayboardUser.find({ role: 'housekeeping' }).select('_id ownerId');
+  const staffUsers = await StayboardUser.find({ role: "housekeeping" }).select(
+    "_id ownerId",
+  );
   for (const staffUser of staffUsers) {
-    const ownerId = String(staffUser.ownerId || '');
+    const ownerId = String(staffUser.ownerId || "");
     if (!ownerId) continue;
 
     const dueCount = await StayboardHousekeepingTask.countDocuments({
       ownerId,
       dueDate,
       isActive: { $ne: false },
-      status: { $in: ['pending', 'in_progress'] },
+      status: { $in: ["pending", "in_progress"] },
     });
     if (!dueCount) continue;
 
-    const staffDevices = await StayboardDevice.find({ userId: String(staffUser._id) });
+    const staffDevices = await StayboardDevice.find({
+      userId: String(staffUser._id),
+    });
     if (!staffDevices.length) continue;
 
     await sendPushNotifications(
       staffDevices.map((d) => d.pushToken),
-      'Housekeeping reminder',
+      "Housekeeping reminder",
       `You have ${dueCount} housekeeping tasks due today.`,
     );
   }
 
-  return appResponse(200, { dueDate }, 'Daily housekeeping reminders processed');
+  return appResponse(
+    200,
+    { dueDate },
+    "Daily housekeeping reminders processed",
+  );
 };
 
 export const vacantListingReminderHandler = async () => {
   const now = moment().utcOffset(330);
-  const today = now.format('YYYY-MM-DD');
-  const currentTime = now.format('HH:mm');
+  const today = now.format("YYYY-MM-DD");
+  const currentTime = now.format("HH:mm");
 
-  const listings = await StayboardListing.find({ isActive: { $ne: false } }).select(
-    '_id ownerId name checkInTime',
-  );
+  const listings = await StayboardListing.find({
+    isActive: { $ne: false },
+  }).select("_id ownerId name checkInTime");
 
   if (!listings.length) {
-    return appResponse(200, { date: today, remindersSent: 0 }, 'Vacant listing reminders processed');
+    return appResponse(
+      200,
+      { date: today, remindersSent: 0 },
+      "Vacant listing reminders processed",
+    );
   }
 
-  const ownerIds = [...new Set(listings.map((listing: any) => String(listing.ownerId || '')).filter(Boolean))];
+  const ownerIds = [
+    ...new Set(
+      listings
+        .map((listing: any) => String(listing.ownerId || ""))
+        .filter(Boolean),
+    ),
+  ];
 
   let remindersSent = 0;
   for (const ownerId of ownerIds) {
-    const ownerListings = listings.filter((listing: any) => String(listing.ownerId) === ownerId);
+    const ownerListings = listings.filter(
+      (listing: any) => String(listing.ownerId) === ownerId,
+    );
     if (!ownerListings.length) continue;
 
     const checkInWindowListings = ownerListings.filter((listing: any) => {
-      const checkInTime = String(listing.checkInTime || '13:00');
+      const checkInTime = String(listing.checkInTime || "13:00");
       return currentTime >= checkInTime;
     });
     if (!checkInWindowListings.length) continue;
@@ -272,7 +314,7 @@ export const vacantListingReminderHandler = async () => {
       ownerId,
       checkInDate: { $lte: today },
       checkOutDate: { $gt: today },
-    }).select('listingId');
+    }).select("listingId");
 
     const occupiedListingIds = new Set(
       occupiedBookingRows.map((booking: any) => String(booking.listingId)),
@@ -283,27 +325,63 @@ export const vacantListingReminderHandler = async () => {
     );
     if (!vacantListings.length) continue;
 
-    const ownerUsers = await StayboardUser.find({ role: 'owner', ownerId }).select('_id');
+    const ownerUsers = await StayboardUser.find({
+      role: "owner",
+      ownerId,
+    }).select("_id");
     const ownerUserIds = ownerUsers.map((owner: any) => String(owner._id));
     if (!ownerUserIds.length) continue;
 
-    const ownerDevices = await StayboardDevice.find({ userId: { $in: ownerUserIds } }).select('pushToken');
+    const ownerDevices = await StayboardDevice.find({
+      userId: { $in: ownerUserIds },
+    }).select("pushToken");
     if (!ownerDevices.length) continue;
 
-    const listingCount = vacantListings.length;
-    await sendPushNotifications(
-      ownerDevices.map((device: any) => device.pushToken),
-      'Vacant property reminder',
-      listingCount === 1
-        ? 'A listing is still vacant after check-in time. If a booking was received, please add booking details.'
-        : `${listingCount} listings are still vacant after check-in time. If bookings were received, please add booking details.`,
-    );
+    const randomNumber = Math.floor(Math.random() * 5);
+
+    switch (randomNumber) {
+      case 0:
+        await sendPushNotifications(
+          ownerDevices.map((device: any) => device.pushToken),
+          "Add Missing Bookings Now",
+          "Every reservation should be tracked before the next guest arrives.",
+        );
+        break;
+      case 1:
+        await sendPushNotifications(
+          ownerDevices.map((device: any) => device.pushToken),
+          "Update Bookings Before It's Forgotten",
+          "A quick review now can prevent scheduling issues later.",
+        );
+        break;
+      case 2:
+        await sendPushNotifications(
+          ownerDevices.map((device: any) => device.pushToken),
+          "All Bookings are done?",
+          "Add any bookings received from Airbnb or direct channels.",
+        );
+        break;
+      case 3:
+        await sendPushNotifications(
+          ownerDevices.map((device: any) => device.pushToken),
+          "Log Bookings on Stayboard",
+          "Make sure no booking is missing from your calendar.",
+        );
+        break;
+      case 4:
+        await sendPushNotifications(
+          ownerDevices.map((device: any) => device.pushToken),
+          "Missing bookings on Stayboard",
+          "Every reservation should be tracked before the next guest arrives.",
+        );
+        break;
+    }
     remindersSent += 1;
   }
 
   return appResponse(
     200,
     { date: today, time: currentTime, remindersSent },
-    'Vacant listing reminders processed',
+    "Vacant listing reminders processed",
   );
 };
