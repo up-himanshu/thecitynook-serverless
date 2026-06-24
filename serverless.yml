@@ -192,6 +192,12 @@ functions:
       - httpApi:
           path: /api/app/auth/signup
           method: post
+  appRefresh:
+    handler: src/handlers/stayboard/refresh.handler
+    events:
+      - httpApi:
+          path: /api/app/auth/refresh
+          method: post
   appMe:
     handler: src/handlers/stayboard/users.meHandler
     events:

@@ -1,7 +1,7 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
-import jwt from 'jsonwebtoken';
 import { getStayboardModels } from '../../data/stayboard';
 import { appResponse } from '../../utils/stayboard/response';
+import { issueStayboardAuthTokens } from '../../utils/stayboard/auth';
 
 const { User: StayboardUser } = getStayboardModels();
 
@@ -43,15 +43,27 @@ export const handler = async (event: APIGatewayProxyEvent) => {
 
     await StayboardUser.updateOne({ _id: user._id }, { $set: { ownerId: user._id } });
 
-    const token = jwt.sign(
-      { userId: user._id, email: user.email, role: user.role, ownerId: user._id },
-      process.env.STAYBOARD_JWT_SECRET || 'stayboard-secret',
-      { expiresIn: '7d' }
-    );
+    const authTokens = issueStayboardAuthTokens({
+      userId: user._id,
+      email: user.email || null,
+      role: user.role,
+      ownerId: user._id,
+    });
 
     return appResponse(
       201,
-      { token, user: { id: user._id, fullName: user.fullName, displayName: user.displayName || user.fullName, role: user.role, email: user.email || null, phone: user.phone, countryCode: user.countryCode } },
+      {
+        ...authTokens,
+        user: {
+          id: user._id,
+          fullName: user.fullName,
+          displayName: user.displayName || user.fullName,
+          role: user.role,
+          email: user.email || null,
+          phone: user.phone,
+          countryCode: user.countryCode,
+        },
+      },
       'Signup successful'
     );
   } catch (error) {

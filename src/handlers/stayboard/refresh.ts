@@ -1,32 +1,33 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
 import { getStayboardModels } from '../../data/stayboard';
 import { appResponse } from '../../utils/stayboard/response';
-import { ensureDemoUsers } from '../../utils/stayboard/seed';
-import { issueStayboardAuthTokens } from '../../utils/stayboard/auth';
+import {
+  issueStayboardAuthTokens,
+  parseRefreshToken,
+} from '../../utils/stayboard/auth';
 
 const { User: StayboardUser } = getStayboardModels();
 
 export const handler = async (event: APIGatewayProxyEvent) => {
   try {
-    await ensureDemoUsers();
-    if (!event.body) return appResponse(400, {}, 'Missing request body');
-    const { phone, password, countryCode } = JSON.parse(event.body);
-
-    const normalizedPhone = String(phone || '').replace(/\D/g, '');
-    const normalizedCountryCode = String(countryCode || '91').trim();
-
-    if (!normalizedPhone || normalizedPhone.length !== 10 || !password) {
-      return appResponse(400, {}, 'Valid 10-digit phone and password are required');
+    if (!event.body) {
+      return appResponse(400, {}, 'Missing request body');
     }
 
-    const user = await StayboardUser.findOne({
-      countryCode: normalizedCountryCode,
-      phone: normalizedPhone,
-    });
-    if (!user) return appResponse(401, {}, 'Invalid credentials');
+    const { refreshToken } = JSON.parse(event.body);
+    if (!refreshToken || typeof refreshToken !== 'string') {
+      return appResponse(400, {}, 'Refresh token is required');
+    }
 
-    const valid = await user.comparePassword(password);
-    if (!valid) return appResponse(401, {}, 'Invalid credentials');
+    const token = parseRefreshToken(refreshToken);
+    if (!token) {
+      return appResponse(401, {}, 'Invalid or expired refresh token');
+    }
+
+    const user = await StayboardUser.findById(token.userId);
+    if (!user) {
+      return appResponse(401, {}, 'User not found');
+    }
 
     const authTokens = issueStayboardAuthTokens({
       userId: user._id,
@@ -34,6 +35,7 @@ export const handler = async (event: APIGatewayProxyEvent) => {
       role: user.role,
       ownerId: user.ownerId || user._id,
     });
+
     return appResponse(
       200,
       {
@@ -48,7 +50,7 @@ export const handler = async (event: APIGatewayProxyEvent) => {
           countryCode: user.countryCode,
         },
       },
-      'Login successful'
+      'Token refreshed'
     );
   } catch (error) {
     console.error(error);
