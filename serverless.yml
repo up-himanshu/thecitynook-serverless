@@ -210,6 +210,12 @@ functions:
       - httpApi:
           path: /api/app/staff
           method: post
+  appStaffResetPassword:
+    handler: src/handlers/stayboard/users.resetStaffPasswordHandler
+    events:
+      - httpApi:
+          path: /api/app/staff/{staffId}/reset-password
+          method: post
   appDeleteAccountRequest:
     handler: src/handlers/stayboard/deleteAccount.requestDeleteHandler
     events:

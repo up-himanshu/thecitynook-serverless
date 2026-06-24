@@ -10,6 +10,16 @@ const normalizeEmail = (email: any): string | null => {
   return value ? value : null;
 };
 
+const toStaffResponse = (user: any) => ({
+  id: user._id,
+  fullName: user.fullName,
+  displayName: user.displayName || user.fullName,
+  email: user.email || null,
+  phone: user.phone,
+  countryCode: user.countryCode,
+  role: user.role,
+});
+
 export const meHandler = async (event: APIGatewayProxyEvent) => {
   const token = parseToken(event);
   if (!token) return appResponse(401, {}, 'Unauthorized');
@@ -75,14 +85,38 @@ export const createStaffHandler = async (event: APIGatewayProxyEvent) => {
   });
 
   return appResponse(201, {
-    staff: {
-      id: staff._id,
-      fullName: staff.fullName,
-      displayName: staff.displayName || staff.fullName,
-      email: staff.email || null,
-      phone: staff.phone,
-      countryCode: staff.countryCode,
-      role: staff.role,
-    },
+    staff: toStaffResponse(staff),
   }, 'Staff created');
+};
+
+export const resetStaffPasswordHandler = async (event: APIGatewayProxyEvent) => {
+  const token = parseToken(event);
+  if (!token) return appResponse(401, {}, 'Unauthorized');
+  if (token.role !== 'owner') return appResponse(403, {}, 'Forbidden');
+
+  const staffId = event.pathParameters?.staffId;
+  if (!staffId) return appResponse(400, {}, 'staffId is required');
+  if (!event.body) return appResponse(400, {}, 'Missing request body');
+
+  let parsedBody: { password?: string } | null = null;
+  try {
+    parsedBody = JSON.parse(event.body);
+  } catch {
+    return appResponse(400, {}, 'Invalid request body');
+  }
+
+  const password = String(parsedBody?.password ?? '').trim();
+  if (!password) return appResponse(400, {}, 'password is required');
+
+  const staff = await StayboardUser.findOne({
+    _id: staffId,
+    ownerId: token.userId,
+    role: 'housekeeping',
+  });
+  if (!staff) return appResponse(404, {}, 'Staff not found');
+
+  staff.password = password;
+  await staff.save();
+
+  return appResponse(200, { staff: toStaffResponse(staff) }, 'Password reset');
 };
