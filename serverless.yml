@@ -42,9 +42,14 @@ provider:
       allowedOrigins:
         - "https://www.thecitynook.com"
         - "https://thecitynook.com"
+        - "http://localhost:5173"
+        - "http://127.0.0.1:5173"
       allowedMethods:
         - GET
         - POST
+        - PUT
+        - PATCH
+        - DELETE
         - OPTIONS
       allowedHeaders:
         - Content-Type
@@ -110,6 +115,36 @@ functions:
       - httpApi:
           path: /login
           method: options
+  adminLogin:
+    handler: src/handlers/admin/auth.loginHandler
+    events:
+      - httpApi:
+          path: /api/admin/auth/login
+          method: post
+  adminMe:
+    handler: src/handlers/admin/auth.meHandler
+    events:
+      - httpApi:
+          path: /api/admin/auth/me
+          method: get
+  adminRegister:
+    handler: src/handlers/admin/auth.registerAdminHandler
+    events:
+      - httpApi:
+          path: /api/admin/auth/register
+          method: post
+  adminForgotPassword:
+    handler: src/handlers/admin/auth.forgotPasswordHandler
+    events:
+      - httpApi:
+          path: /api/admin/auth/forgot-password
+          method: post
+  adminResetPassword:
+    handler: src/handlers/admin/auth.resetPasswordHandler
+    events:
+      - httpApi:
+          path: /api/admin/auth/reset-password
+          method: post
   syncCalendar:
     handler: src/handlers/syncCalendar.handler
     timeout: 30
@@ -126,12 +161,30 @@ functions:
       - httpApi:
           path: /create-default-admin
           method: post
+  adminSeed:
+    handler: src/handlers/createDefaultAdmin.handler
+    events:
+      - httpApi:
+          path: /api/admin/seed
+          method: post
   preflightCreateDefaultAdmin:
     handler: src/handlers/preflight.handler
     events:
       - httpApi:
           path: /create-default-admin
           method: options
+  adminStayboardUsers:
+    handler: src/handlers/admin/users.listStayboardUsersHandler
+    events:
+      - httpApi:
+          path: /api/admin/stayboard/users
+          method: get
+  adminStayboardUserResetPassword:
+    handler: src/handlers/admin/users.resetStayboardUserPasswordHandler
+    events:
+      - httpApi:
+          path: /api/admin/stayboard/users/{id}/reset-password
+          method: post
   user:
     handler: src/handlers/user.handler
     events:

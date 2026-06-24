@@ -91,8 +91,10 @@ export const sendResponse = async (
   return {
     statusCode: status,
     headers: {
-      "Access-Control-Allow-Origin": "https://www.thecitynook.com",
+      "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Credentials": "true",
+      "Access-Control-Allow-Headers": "Content-Type,Authorization,Key,X-Requested-With",
+      "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
     },
     body: [200, 201, 204].includes(status)
       ? JSON.stringify({ message, data })

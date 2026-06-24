@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-const mongoUri = process.env.DB_CONNECTION_STRING;
+const mongoUri = process.env.DB_CONNECTION_STRING || "";
 
 // Connect to MongoDB
 mongoose.connect(mongoUri);

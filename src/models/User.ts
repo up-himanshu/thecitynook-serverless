@@ -6,6 +6,8 @@ export interface IUser extends Document {
   email: string;
   password: string;
   isAdmin: boolean;
+  passwordResetTokenHash?: string | null;
+  passwordResetExpiresAt?: Date | null;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -26,6 +28,14 @@ const UserSchema: Schema = new Schema(
       type: Boolean,
       default: false,
     },
+    passwordResetTokenHash: {
+      type: String,
+      default: null,
+    },
+    passwordResetExpiresAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );
@@ -45,7 +55,7 @@ UserSchema.pre("save", async function (next) {
 // Method to compare password for login
 UserSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
   try {
-    return await bcrypt.compare(candidatePassword, this.password);
+    return await bcrypt.compare(candidatePassword, String(this.password));
   } catch (error) {
     throw error;
   }
