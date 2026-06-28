@@ -1,4 +1,5 @@
 import { GetObjectCommand, S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const client = new S3Client({
   region: process.env.STAYBOARD_AWS_REGION || "ap-south-1",
@@ -70,11 +71,15 @@ export const getGuestIdPhotoSignedUrl = async (
   const location = getBucketAndKeyFromUrl(sourceUrl);
   if (!location) return sourceUrl;
 
-  let getSignedUrlFn: any;
   try {
-    getSignedUrlFn =
-      // eslint-disable-next-line global-require, @typescript-eslint/no-var-requires
-      require("@aws-sdk/s3-request-presigner").getSignedUrl;
+    return await getSignedUrl(
+      client,
+      new GetObjectCommand({
+        Bucket: location.bucket,
+        Key: location.key,
+      }),
+      { expiresIn },
+    );
   } catch (error) {
     console.warn(
       "S3 request presigner unavailable, returning raw guest ID photo URL:",
@@ -82,15 +87,6 @@ export const getGuestIdPhotoSignedUrl = async (
     );
     return sourceUrl;
   }
-
-  return getSignedUrlFn(
-    client,
-    new GetObjectCommand({
-      Bucket: location.bucket,
-      Key: location.key,
-    }),
-    { expiresIn },
-  );
 };
 
 export const withSignedGuestIdPhotoUrls = async <T extends {

@@ -52,6 +52,12 @@ provider:
         - Authorization
       maxAge: 3600
 
+package:
+  individually: true
+  patterns:
+    - "!node_modules/**"
+    - "!**/*.map"
+
 plugins:
   - serverless-offline
 
@@ -93,7 +99,7 @@ functions:
           method: options
   preflightReservationEnquiry:
     handler: src/handlers/preflight.handler
-    timeout: 30
+    timeout: 5
     events:
       - httpApi:
           path: /reservation-enquiry
