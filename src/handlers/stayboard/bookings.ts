@@ -341,6 +341,7 @@ export const updateBookingHandler = async (event: APIGatewayProxyEvent) => {
   const checkOutDate = String(parsed.checkOutDate || "").trim();
   const phone = String(parsed.phone || "").replace(/\D/g, "");
   const amount = Number(parsed.amount || 0);
+  const nextListingId = String(parsed.listingId || "").trim();
 
   if (!guestName || !checkInDate || !checkOutDate) {
     return appResponse(
@@ -369,12 +370,38 @@ export const updateBookingHandler = async (event: APIGatewayProxyEvent) => {
   });
   if (!booking) return appResponse(404, {}, "Booking not found");
 
+  let nextListing = null;
+  if (nextListingId && nextListingId !== String(booking.listingId)) {
+    nextListing = await StayboardListing.findOne({
+      _id: nextListingId,
+      ownerId: token.userId,
+      isActive: { $ne: false },
+    });
+    if (!nextListing) return appResponse(404, {}, "Listing not found");
+  }
+
   booking.guestName = guestName;
   booking.phone = phone || undefined;
   booking.checkInDate = checkInDate;
   booking.checkOutDate = checkOutDate;
   booking.nights = calculateNights(checkInDate, checkOutDate);
   booking.amount = amount;
+  if (nextListing) {
+    const nextListingIdStr = String(nextListing._id);
+    booking.listingId = nextListingIdStr;
+    await StayboardHousekeepingTask.updateMany(
+      {
+        bookingId: booking._id,
+        ownerId: token.userId,
+        isActive: { $ne: false },
+        status: { $in: ["pending", "skipped", "in_progress"] },
+      },
+      {
+        listingId: nextListingIdStr,
+        roomName: nextListing.name,
+      },
+    );
+  }
 
   await booking.save();
 
