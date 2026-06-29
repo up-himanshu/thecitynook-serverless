@@ -49,7 +49,7 @@ const compareValue = (left: any, right: any): number => {
   return String(left).localeCompare(String(right));
 };
 
-const matchesCondition = (item: PlainRecord, where: PlainRecord): boolean => {
+export const matchesCondition = (item: PlainRecord, where: PlainRecord): boolean => {
   if (!where || !Object.keys(where).length) return true;
 
   for (const [key, expected] of Object.entries(where)) {
@@ -65,8 +65,14 @@ const matchesCondition = (item: PlainRecord, where: PlainRecord): boolean => {
       for (const [op, opValue] of Object.entries(expected)) {
         if (op === "$ne") {
           if (actual === opValue) return false;
+        } else if (op === "$gt") {
+          if (!(actual > opValue)) return false;
         } else if (op === "$gte") {
           if (!(actual >= opValue)) return false;
+        } else if (op === "$lt") {
+          if (!(actual < opValue)) return false;
+        } else if (op === "$lte") {
+          if (!(actual <= opValue)) return false;
         } else if (op === "$in") {
           if (
             !Array.isArray(opValue) ||
